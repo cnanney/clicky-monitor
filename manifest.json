@@ -1,0 +1,19 @@
+{
+	"name": "ClickyChrome",
+	"version": "2.0",
+	"minimum_chrome_version": "6.0.472.53",
+	"description": "A Chrome extension for Clicky Web Analytics.",
+	"background_page": "background.html",
+	"options_page": "options.html",
+	"icons": {
+		"16": "images/clicky_icon_16.png",
+		"32": "images/clicky_icon_32.png",
+		"48": "images/clicky_icon_48.png",
+		"128": "images/clicky_icon_128.png"
+	},
+	"browser_action": {
+		"default_icon": "images/clicky_icon.png",
+		"popup": "popup.html"
+	},
+	"permissions": ["tabs", "notifications", "contextMenus", "http://api.getclicky.com/", "https://api.getclicky.com/"]
+}

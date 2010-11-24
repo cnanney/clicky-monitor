@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<title>ClickyChrome Notification</title>
+	<meta charset="utf-8" />
+	<link rel="stylesheet" type="text/css" href="/css/_reset.css" />
+	<link rel="stylesheet" type="text/css" href="/css/notifications.css" />
+	<script type="text/javascript" src="/javascript/jquery.js"></script>
+	<script type="text/javascript" src="/javascript/functions.js"></script>
+	<script type="text/javascript" src="/javascript/notifications.js"></script>
+</head>
+
+<body onload="ClickyChrome.Notifications.buildSampleNotification()">
+	<div class="notification">
+		<div id="notification_header">
+			<a href="#" id="scrollLeftButton" title="Scroll left"></a>
+			2 Goals: Demo Site
+			<a href="#" id="scrollRightButton" title="Scroll right"></a>
+		</div>
+		<div id="notification_frame">
+			<div id="notification_container">
+				<div class="notification_body">
+					<div class="goal_value">$120</div><div class="goal_name">
+					<img src="/images/icon_goal.gif" class="goal_icon" alt="Goal Name" />Test Goal 1, Another Goal
+					</div><div class="goal_user"><a href="#">127.0.0.1</a></div><div class="goal_geo">
+					<img src="http://static.getclicky.com/media/flags/us.gif" class="goal_flag" alt="US" />Chicago, IL, USA
+					</div><p class="session_link"><a href="#">Wed Aug 4 2010, 6:59pm</a></p>
+				</div>
+				<div class="notification_body">
+					<div class="goal_value">$5</div><div class="goal_name">
+					<img src="/images/icon_goal.gif" class="goal_icon" alt="Goal Name" />Test Goal 2
+					</div><div class="goal_user"><span class="goal_custom"><a href="#">Username</a></span></div><div class="goal_geo">
+					<img src="http://static.getclicky.com/media/flags/us.gif" class="goal_flag" alt="US" />Indianapolis, IN, USA
+					</div><p class="session_link"><a href="#">Wed Aug 4 2010, 4:54pm</a></p>
+				</div>
+			</div>
+		</div>
+	</div>
+</body>
+
+</html>

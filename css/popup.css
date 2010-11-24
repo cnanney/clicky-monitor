@@ -1,0 +1,72 @@
+#wrapper{position:relative;width:400px;min-height:313px;background:#fff;padding:10px}
+#header{width:400px;height:45px;border-bottom:#eee 1px solid}
+#loading{position:absolute;top:38px;left:51px;}
+#options{position:absolute;top:10px;right:10px;font-size:10px}
+#dropdowns{position:absolute;top:22px;right:10px;z-index:100}
+.dropdown{float:left;margin-top:5px;position:relative}
+a.dropdown-display{margin-left:10px;}
+a.dropdown-display, a.dropdown-display:visited {font: bold 11px arial, sans-serif;color:#fff;background:#5D93E1;text-decoration:none;padding: 2px 5px;}
+a.dropdown-display:hover, a.dropdown-display:active{color:#fff;background:#84ADE9;text-decoration:none;}
+a.dropdown-display.off, a.dropdown-display.off:visited,
+a.dropdown-display.off:hover, a.dropdown-display.off:active{display:none;margin:0}
+.menu {display:none;position:absolute;top:22px;right:0px;background:#fff;border:1px solid #ccc;padding:5px;font-size:11px;white-space:nowrap;text-align:left;z-index:10000;}
+.date, .chart{right:0px;text-align:right;}
+.menu a, .menu a:visited {display:block;text-decoration:none;padding:5px;color:#5D93E1}
+.menu a.current, .menu a.current:visited {color:#000;font-weight:bold;}
+.menu a:hover, .menu a.current:hover {color:#fff;text-decoration:none;background:#5D93E1;}
+a, a:visited{text-decoration:none;color:#0060BF}
+a:hover, a:active{text-decoration:underline;color:#0060BF}
+
+.basics_table{width:400px;margin:5px 0}
+.left{font-size:12px;padding:8px 0  8px 35px}
+.indent{font-size:12px;padding:8px 0  8px 60px}
+span.online{font-size:10px;float:right;margin-right:10px;color:#aaa}
+.visitors{background:url(/images/icon_visitors.gif) 4% 50% no-repeat}
+.actions, .average_actions{background:url(/images/icon_click.gif) 4% 50% no-repeat}
+.time, .time_average{background:url(/images/icon_time.gif) 4% 50% no-repeat}
+.bounce{background:url(/images/icon_bounce.gif) 4% 50% no-repeat}
+.goal{background:url(/images/icon_goal.gif) 4% 50% no-repeat}
+.page_views{background:url(/images/icon_content.gif) 15% 50% no-repeat}
+.downloads{background:url(/images/icon_download.gif) 15% 50% no-repeat}
+.outbound{background:url(/images/icon_outbound.gif) 15% 50% no-repeat}
+.clicks{background:url(/images/icon_click.gif) 15% 50% no-repeat}
+.alt{background:#eef}
+.value{border-left:#e8e8e8 1px dotted;padding:5px 10px;text-align:right;font-size:12px;font-weight:bold;width:25%}
+
+#link_to_clicky{width:400px;text-align:center;font-size:11px;border-top:#f4f4f4 1px solid;padding-top:10px;margin-top:5px}
+#no_site{width:400px;margin-top:50px;text-align:center;font-size:14px}
+
+.inline_external{background:url(/images/icon_external_link.png) 100% 50% no-repeat;padding-right:16px}
+
+#main_tabs{height:28px;margin:10px 0 2px 0;background:#fff;border-bottom:#f4f4f4 1px solid}
+#main_tabs li{display:inline}
+#main_tabs li a{float:left;text-decoration:none;display:block;height:13px;font-size:14px;padding:6px 10px 8px;margin-right:2px}
+#main_tabs li a:link,
+#main_tabs li a:visited{color:#000;background:-webkit-gradient(linear,left bottom,left top,color-stop(0, rgb(238,238,238)),color-stop(1, rgb(255,255,255)));
+		  border-color:#f4f4f4;border-style:solid;border-width:1px;}
+#main_tabs li a:hover,
+#main_tabs li a:active{color:#000;background:#f8f8f8;border-color:#f4f4f4;border-style:solid;border-width:1px;}
+#main_tabs li a.active:hover,
+#main_tabs li a.active:active,
+#main_tabs li a.active:link,
+#main_tabs li a.active:visited{color:#f80;font-weight:bold;background:#fff;border-color:#e5e5e5 #e5e5e5 #fff #e5e5e5;border-style:solid;border-width:1px}
+
+span.basics_bg{width:16px;height:16px;float:left;background:url(/images/icon_dashboard.gif) top left no-repeat;margin-right:6px}
+span.visitors_bg{width:16px;height:16px;float:left;background:url(/images/icon_visitors.gif) top left no-repeat;margin-right:6px}
+span.charts_bg{width:16px;height:16px;float:left;background:url(/images/icon_charts.png) top left no-repeat;margin-right:6px}
+
+#visitor_list{width:400px;margin-top:5px;}
+.visitor{font-size:12px;padding:8px;overflow:hidden}
+.visitor_session{font-size:11px;margin-top:4px;line-height:14px}
+.visitor_landed, .visitor_from{font-size:10px;margin-top:4px;line-height:12px}
+.visitor_from{margin-top:2px}
+.visitor_flag{float:left;width:18px;height:12px;text-align:center;margin-right:5px}
+.visitor_ip, .visitor_actions{float:right}
+.visitor_search{font-style:italic;color:#777}
+.visitor_custom{float:right;background:url(/images/icon_star_small.gif) 0px -5px no-repeat;padding-left:16px}
+.visitor_goal{background:url(/images/icon_goal_small.png) 0px 1px no-repeat;padding-left:14px}
+
+h3{text-align:center;font-weight:bold;font-size:12px;margin:5px 0 0;background:#f8f8f8;padding:5px}
+
+#chart_area{width:400px;margin:5px auto 0}
+#chart{width:400px;height:196px}

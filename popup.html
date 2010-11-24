@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<title>ClickyChrome</title>
+	<meta charset="utf-8" />
+	<link rel="stylesheet" type="text/css" href="css/_reset.css" />
+	<link rel="stylesheet" type="text/css" href="css/popup.css" />
+	<script type="text/javascript" src="javascript/jquery.js"></script>
+	<script type="text/javascript" src="javascript/raphael.js"></script>
+	<script type="text/javascript" src="javascript/functions.js"></script>
+	<script type="text/javascript" src="javascript/process.js"></script>
+	<script type="text/javascript" src="javascript/build.js"></script>
+	<script type="text/javascript" src="javascript/popup.js"></script>
+</head>
+
+<body onload="ClickyChrome.Popup.init()">
+	<div id="wrapper">
+		<div id="header">
+			<img id="clicky-logo" src="images/clicky_logo.png" alt="Clicky Analytics" />
+			<div id="options"><a id="show_options" href="#">Options</a></div>
+			<img id="loading" src="images/loader.gif" alt="Loading..." />
+			<ul id="dropdowns">
+				<li class="dropdown">
+					<div id="site-select-container" style="display:none">
+						<a id="site-select" class="dropdown-display" href="#"><span></span> &#9660;</a><br />
+						<ul id="site-list" class="menu"></ul>
+					</div>
+				</li>
+				<li class="dropdown">
+					<div id="date-select-container"  style="display:none">
+						<a id="date-select" class="dropdown-display" href="#"><span>Today</span> &#9660;</a><br />
+						<ul id="date-list" class="menu date">
+							<li><a class="current" href="#" id="today">Today</a></li>
+							<li><a href="#" id="yesterday">Yesterday</a></li>
+							<li><a href="#" id="last-7-days">Last 7 Days</a></li>
+							<li><a href="#" id="last-30-days">Last 30 Days</a></li>
+						</ul>
+					</div>
+				</li>
+				<li class="dropdown">
+					<div id="chart-select-container"  style="display:none">
+						<a id="chart-select" class="dropdown-display off" href="#"><span>Visitors</span> &#9660;</a><br />
+						<ul id="chart-list" class="menu chart">
+							<li><a href="#" id="visitors">Visitors</a></li>
+							<li><a href="#" id="actions">Actions</a></li>
+							<li><a href="#" id="web-browsers">Browsers</a></li>
+						</ul>
+					</div>
+				</li>
+			</ul>
+		</div>
+		<ul id="main_tabs">
+			<li><a class="active" href="#" id="basics_tab"><span class="basics_bg"></span>Basics</a></li>
+			<li><a href="#" id="visitors_tab"><span class="visitors_bg"></span>Visitors</a></li>
+			<li><a href="#" id="charts_tab"><span class="charts_bg"></span>Charts</a></li>
+		</ul>
+		<div id="content"></div>
+	</div>
+</body>
+
+</html>

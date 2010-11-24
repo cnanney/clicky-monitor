@@ -1,0 +1,27 @@
+.notification{position:relative;width:300px;height:120px;overflow:hidden;font-size:12px}
+#notification_header{position:relative;width:300px;height:21px;font-weight:bold;line-height:20px;background:#eee;text-align:center;border-bottom:#ddd 1px solid}
+#notification_frame{position:absolute;width:300px;height:100px}
+#notification_container{position:absolute;top:0;left:0;width:300px;height:100px}
+.notification_body{float:left;position:relative;width:300px;height:100px}
+
+#scrollLeftButton{position:absolute;top:5px;left:10px;width:12px;height:12px;background:url(/images/icon_left.png) no-repeat;display:none}
+#scrollRightButton{position:absolute;top:5px;right:10px;width:12px;height:12px;background:url(/images/icon_right.png) no-repeat;display:none}
+#scrollLeftButton:hover, #scrollRightButton:hover{background-position:0 -12px}
+
+
+.goal_value{position:absolute;right:8px;top:5px;font-size:18px;font-weight:bold}
+
+.goal_name{max-width:200px;font-weight:bold;line-height:16px;margin:5px 0 0 8px}
+.goal_icon{width:16px;height:16px;margin-right:5px;}
+
+.goal_user{position:absolute;top:30px;right:8px}
+
+.goal_geo{position:absolute;top:48px;left:8px}
+.goal_flag{float:left;width:18px;height:12px;text-align:center;margin-right:5px}
+
+.goal_custom{background:url(/images/icon_star_small.gif) no-repeat 0px -5px;padding-left:16px}
+
+p.session_link{width:300px;position:absolute;bottom:10px;font-size:11px;text-align:center;padding-top:6px;border-top:#ddd 1px solid}
+
+a, a:visited{text-decoration:none;color:#0060BF}
+a:hover, a:active{text-decoration:underline;color:#0060BF}
