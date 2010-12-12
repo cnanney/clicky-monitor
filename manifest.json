@@ -1,6 +1,6 @@
 {
 	"name": "ClickyChrome",
-	"version": "2.0",
+	"version": "2.0.1",
 	"minimum_chrome_version": "6.0.472.53",
 	"description": "A Chrome extension for Clicky Web Analytics.",
 	"background_page": "background.html",
