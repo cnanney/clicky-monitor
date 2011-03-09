@@ -34,8 +34,6 @@ $(function(){
 		ClickyChrome.Notifications.scrollLeft();
 		return false;
 	});
-	// External links
-	$("a.external").live("click", function(){ClickyChrome.Notifications.externalLink($(this))});
 });
 
 
@@ -70,9 +68,9 @@ ClickyChrome.Notifications.buildNotification = function(){
 
 			html += '<div class="notification_body"><div class="goal_value">' + value + '</div>' +
 				'<div class="goal_name"><img src="/images/icon_goal.gif" class="goal_icon" alt="Goals Completed" />' +
-				goals[id].goals + '</div><div class="goal_user"><span class="' + displayClass + '"><a class="external" href="' +
+				goals[id].goals + '</div><div class="goal_user"><span class="' + displayClass + '"><a class="external" target="_blank" href="' +
 				ipLink + '">' + goals[id].visitor + '</a></span></div>' + '<div class="goal_geo"><img src="' + flagUrl + '" class="goal_flag" alt="Geolocation" />' +
-				goals[id].geo + '</div><p class="session_link"><a class="external" href="' + goals[id].url + '">' + goals[id].time + '</a></p></div>';
+				goals[id].geo + '</div><p class="session_link"><a class="external" target="_blank" href="' + goals[id].url + '">' + goals[id].time + '</a></p></div>';
 		}
 	}
 
@@ -135,15 +133,4 @@ ClickyChrome.Notifications.scrollLeft = function(){
 		this.vars.slide--;
 	}
 	this.checkScroll();
-};
-
-/**
- * Handles opening external links
- *
- * @param {string} link
- *		URL to open
- */
-ClickyChrome.Notifications.externalLink = function(link){
-	var windowUrl = link.attr("href");
-	ClickyChrome.Functions.openUrl(windowUrl);
 };
