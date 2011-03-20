@@ -1,8 +1,8 @@
 {
-	"name": "ClickyChrome",
-	"version": "2.0.2",
+	"name": "Clicky Monitor",
+	"version": "2.0.3",
 	"minimum_chrome_version": "6.0.472.53",
-	"description": "A Chrome extension for Clicky Web Analytics.",
+	"description": "A Google Chrome™ extension for Clicky Web Analytics.",
 	"background_page": "background.html",
 	"options_page": "options.html",
 	"icons": {
