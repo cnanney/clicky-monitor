@@ -1,18 +1,15 @@
 /**
- * ClickyChrome
- * ------------
+ * Clicky Monitor
+ * --------------
  * A Chrome extension for Clicky Web Analytics
  * http://getclicky.com
  *
  * Copyright (c) 2010 Chris Nanney
- * http://cnanney.com/clickychrome
+ * http://cnanney.com/clickymonitor/
  * http://bitbucket.org/cnanney/clickychrome/
  *
  * Licensed under MIT
  * http://www.opensource.org/licenses/mit-license.php
- *
- * Version: 2.0
- * Released: September 8, 2010
  */
 
 var ClickyChrome = ClickyChrome || {};
@@ -31,8 +28,9 @@ ClickyChrome.Build.basics = function(){
 	actionsURL = 'http://getclicky.com/stats/visitors-actions?site_id=' + siteInfo[0] + '&date=' + localStorage["clickychrome_currentDate"],
 	goalsURL = 'http://getclicky.com/stats/goals?site_id=' + siteInfo[0] + '&date=' + localStorage["clickychrome_currentDate"],
 	linkText = 'View ' + siteInfo[2] + ' on Clicky',
-	apiString = 'http://api.getclicky.com/api/stats/4?site_id=' + siteInfo[0] + '&sitekey=' + siteInfo[1] + '&date=' + localStorage["clickychrome_currentDate"] +
-		'&type=visitors-online,visitors,actions,actions-average,time-total-pretty,time-average-pretty,bounce-rate,goals&output=json&app=clickychrome';
+	apiString = 'http://api.getclicky.com/api/stats/4?site_id=' + siteInfo[0] + '&sitekey=' + siteInfo[1] +
+		'&date=' + localStorage["clickychrome_currentDate"] +'&type=visitors-online,visitors,actions,actions-average,time-total-pretty,' +
+		'time-average-pretty,bounce-rate,goals&output=json&app=clickychrome';
 
 	$.ajax({
 		url: apiString,

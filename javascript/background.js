@@ -1,18 +1,17 @@
 /**
- * ClickyChrome
- * ------------
+ * Clicky Monitor
+ * --------------
  * A Chrome extension for Clicky Web Analytics
  * http://getclicky.com
  *
  * Copyright (c) 2010 Chris Nanney
- * http://cnanney.com/clickychrome
+ * http://cnanney.com/clickymonitor/
  * http://bitbucket.org/cnanney/clickychrome/
  *
  * Licensed under MIT
  * http://www.opensource.org/licenses/mit-license.php
  *
- * Version: 2.0
- * Released: September 8, 2010
+ * Version 2.0.3 - Saturday, March 19, 2011
  */
 
 var ClickyChrome = ClickyChrome || {};
