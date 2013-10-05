@@ -10,24 +10,28 @@
  * http://www.opensource.org/licenses/mit-license.php
  */
 
-var ClickyChrome = ClickyChrome || {};
+var CM = CM || {};
 
-ClickyChrome.Build = {};
+CM.build = {
+	vars: {
+		statsUrl: 'https://clicky.com/user/#/stats/'
+	}
+};
 
-ClickyChrome.Build.debug = chrome.extension.getBackgroundPage().ClickyChrome.Background.debug;
+CM.build.basics = function(){
+	CM.log('Fetch basic info');
 
-ClickyChrome.Build.basics = function(){
-  if (ClickyChrome.Build.debug) console.log('Fetch basic info');
+  var ls = store.get('cm');
 
-  var siteInfo = localStorage["clickychrome_currentSite"].split(','),
-    linkURL = 'http://getclicky.com/stats/home?site_id='+siteInfo[0]+'&date='+localStorage["clickychrome_currentDate"],
-    spyURL = 'http://getclicky.com/stats/spy?site_id='+siteInfo[0]+'&date='+localStorage["clickychrome_currentDate"],
-    visitorsURL = 'http://getclicky.com/stats/visitors?site_id='+siteInfo[0]+'&date='+localStorage["clickychrome_currentDate"],
-    actionsURL = 'http://getclicky.com/stats/visitors-actions?site_id='+siteInfo[0]+'&date='+localStorage["clickychrome_currentDate"],
-    goalsURL = 'http://getclicky.com/stats/goals?site_id='+siteInfo[0]+'&date='+localStorage["clickychrome_currentDate"],
+  var siteInfo = ls.currentSite.split(','),
+    linkURL = this.vars.statsUrl+'?site_id='+siteInfo[0]+'&date='+ls.currentDate,
+    spyURL = this.vars.statsUrl+'spy?site_id='+siteInfo[0]+'&date='+ls.currentDate,
+    visitorsURL = this.vars.statsUrl+'visitors?site_id='+siteInfo[0]+'&date='+ls.currentDate,
+    actionsURL = this.vars.statsUrl+'visitors-actions?site_id='+siteInfo[0]+'&date='+ls.currentDate,
+    goalsURL = this.vars.statsUrl+'goals?site_id='+siteInfo[0]+'&date='+ls.currentDate,
     linkText = 'View '+siteInfo[2]+' on Clicky',
     apiString = 'http://api.getclicky.com/api/stats/4?site_id='+siteInfo[0]+'&sitekey='+siteInfo[1]+
-      '&date='+localStorage["clickychrome_currentDate"]+'&type=visitors-online,visitors,actions,actions-average,time-total-pretty,'+
+      '&date='+ls.currentDate+'&type=visitors-online,visitors,actions,actions-average,time-total-pretty,'+
       'time-average-pretty,bounce-rate,goals&output=json&app=clickychrome';
 
   $.ajax({
@@ -40,17 +44,17 @@ ClickyChrome.Build.basics = function(){
         var html = '';
         if (data[0].error){
           html = '<p id="no_site">'+data[0].error+'</p>';
-          ClickyChrome.Functions.setBadgeText('ERR');
-          ClickyChrome.Popup.loadHtml(html);
+          CM.func.setBadgeText('ERR');
+          CM.popup.loadHtml(html);
           console.log(data[0].error);
         }
         else{
-          var info = ClickyChrome.Process.basics(data);
+          var info = CM.process.basics(data);
 
           html = '<table class="basics_table" cellpadding="0" cellspacing="0">'+
             '<tr><td class="left visitors"><a class="inline_external external" href="'+visitorsURL+'">Visitors</a>';
 
-          if (localStorage["clickychrome_currentDate"] == 'today'){
+          if (ls.currentDate == 'today'){
             html += '<span class="online">'+info.online+' online now</span>';
           }
 
@@ -67,37 +71,39 @@ ClickyChrome.Build.basics = function(){
             '</table><p id="link_to_clicky"><a class="external" href="'+linkURL+'">'+linkText+'</a></p>';
 
           // Update badge with new value
-          switch (localStorage["clickychrome_spyType"]){
+          switch (ls.spyType){
             case 'online':
-              ClickyChrome.Functions.setBadgeNum(info.online);
+              CM.func.setBadgeNum(info.online);
               break;
             case 'visitors':
-              ClickyChrome.Functions.setBadgeNum(info.visitors);
+              CM.func.setBadgeNum(info.visitors);
               break;
             case 'goals':
-              ClickyChrome.Functions.setBadgeNum(info.goals);
+              CM.func.setBadgeNum(info.goals);
               break;
           }
 
         }
 
-        if (ClickyChrome.Build.debug) console.log('Basics HTML built: '+html);
-        ClickyChrome.Popup.loadHtml(html);
+				CM.log('Basics HTML built');
+        CM.popup.loadHtml(html);
       }
     },
     error: function(XMLHttpRequest, textStatus, errorThrown){
       console.log("Status: "+textStatus+", Error: "+errorThrown);
       console.log(XMLHttpRequest.responseText);
-      ClickyChrome.Popup.loadHtml(false);
+      CM.popup.loadHtml(false);
     }
   });
 
 };
 
-ClickyChrome.Build.visitors = function(){
-  if (ClickyChrome.Build.debug) console.log('Fetch visitors list');
+CM.build.visitors = function(){
+	CM.log('Fetch visitors list');
 
-  var siteInfo = localStorage["clickychrome_currentSite"].split(','),
+  var ls = store.get('cm');
+
+  var siteInfo = ls.currentSite.split(','),
     linkURL = 'http://getclicky.com/stats/visitors?site_id='+siteInfo[0],
     linkText = 'View '+siteInfo[2]+' on Clicky',
     apiString = 'http://api.getclicky.com/api/stats/4?site_id='+siteInfo[0]+
@@ -113,11 +119,11 @@ ClickyChrome.Build.visitors = function(){
         var html = '';
         if (data[0].error){
           html = '<p id="no_site">'+data[0].error+'</p>';
-          ClickyChrome.Popup.loadHtml(html);
+          CM.popup.loadHtml(html);
           console.log(data[0].error);
         }
         else{
-          var info = ClickyChrome.Process.visitors(data[0].dates[0].items),
+          var info = CM.process.visitors(data[0].dates[0].items),
             count = 1, odd;
 
           if (info.length == 0){
@@ -127,7 +133,7 @@ ClickyChrome.Build.visitors = function(){
             html += '<h3>Last 5 Visitors Today</h3>';
             for (var i = 0, c = info.length; i < c; i++){
               var displayName, displayClass, actionClass;
-              if (localStorage["clickychrome_customName"] == "yes" && info[i].customName !== false){
+              if (ls.customName == "yes" && info[i].customName !== false){
                 displayName = info[i].customName;
                 displayClass = 'visitor_custom';
               }
@@ -156,21 +162,24 @@ ClickyChrome.Build.visitors = function(){
           }
           html += '<p id="link_to_clicky"><a class="external" href="'+linkURL+'">'+linkText+'</a></p>';
         }
-        if (ClickyChrome.Build.debug) console.log('Visitors HTML built: '+html);
-        ClickyChrome.Popup.loadHtml(html);
+				CM.log('Visitors HTML built');
+        CM.popup.loadHtml(html);
       }
     },
     error: function(XMLHttpRequest, textStatus, errorThrown){
       console.log("Status: "+textStatus+", Error: "+errorThrown);
       console.log(XMLHttpRequest.responseText);
-      ClickyChrome.Popup.loadHtml(false);
+      CM.popup.loadHtml(false);
     }
   });
 };
 
-ClickyChrome.Build.charts = function(){
-  if (ClickyChrome.Build.debug) console.log('Fetch chart info');
-  var siteInfo = localStorage["clickychrome_currentSite"].split(','),
+CM.build.charts = function(){
+	CM.log('Fetch chart info');
+
+  var ls = store.get('cm');
+
+  var siteInfo = ls.currentSite.split(','),
     apiString,
     linkUrl,
     linkText,
@@ -178,11 +187,11 @@ ClickyChrome.Build.charts = function(){
     tmpLabels = [],
     tmpStatURLs = [];
 
-  if (localStorage["clickychrome_currentChart"] != 'web-browsers'){
+  if (ls.currentChart != 'web-browsers'){
 
     apiString = 'http://api.getclicky.com/stats/api4?site_id='+siteInfo[0]+'&sitekey='+siteInfo[1]+'&type='+
-      localStorage["clickychrome_currentChart"]+'&date=previous-30-days&output=json&daily=1&app=clickychrome',
-      linkUrl = 'http://getclicky.com/stats/'+localStorage["clickychrome_currentChart"]+'?site_id='+siteInfo[0],
+      ls.currentChart+'&date=previous-30-days&output=json&daily=1&app=clickychrome',
+      linkUrl = 'http://getclicky.com/stats/'+ls.currentChart+'?site_id='+siteInfo[0],
       linkText = 'View '+siteInfo[2]+' on Clicky',
       tmpData = [],
       tmpLabels = [];
@@ -196,7 +205,7 @@ ClickyChrome.Build.charts = function(){
         if (data && data[0]){
           if (data[0].error){
             var html = '<p id="no_site">'+data[0].error+'</p>';
-            ClickyChrome.Popup.loadHtml(html);
+            CM.popup.loadHtml(html);
             console.log(data[0].error);
           }
           else{
@@ -206,10 +215,10 @@ ClickyChrome.Build.charts = function(){
                 tmpLabels.push(data[0].dates[i].date);
               }
               $("#content").html('<div id="chart_area"><div id="chart"></div></div>');
-              ClickyChrome.Functions.drawChart(tmpData.join(','), tmpLabels.join(','), localStorage["clickychrome_currentChart"]);
+              CM.func.drawChart(tmpData.join(','), tmpLabels.join(','), ls.currentChart);
               $("#chart_area").append('<p id="link_to_clicky"><a class="external" href="'+linkUrl+'">'+linkText+'</a></p>');
-              ClickyChrome.Popup.hideLoader();
-              if (ClickyChrome.Build.debug) console.log('Graph loaded');
+              CM.popup.hideLoader();
+							CM.log('Graph loaded');
             }
           }
         }
@@ -221,10 +230,10 @@ ClickyChrome.Build.charts = function(){
     });
   }
 
-  if (localStorage["clickychrome_currentChart"] == 'web-browsers'){
+  if (ls.currentChart == 'web-browsers'){
 
     apiString = 'http://api.getclicky.com/stats/api4?site_id='+siteInfo[0]+'&sitekey='+siteInfo[1]+'&type='+
-      localStorage["clickychrome_currentChart"]+'&date=last-30-days&output=json&limit=11&app=clickychrome',
+      ls.currentChart+'&date=last-30-days&output=json&limit=11&app=clickychrome',
       linkUrl = 'http://getclicky.com/stats/visitors-browsers?site_id='+siteInfo[0],
       linkText = 'View '+siteInfo[2]+' on Clicky',
       tmpData = [],
@@ -240,7 +249,7 @@ ClickyChrome.Build.charts = function(){
         if (data && data[0]){
           if (data[0].error){
             var html = '<p id="no_site">'+data[0].error+'</p>';
-            ClickyChrome.Popup.loadHtml(html);
+            CM.popup.loadHtml(html);
             console.log(data[0].error);
           }
           else{
@@ -262,11 +271,11 @@ ClickyChrome.Build.charts = function(){
                 tmpLabels[9] = "Others";
               }
               $("#content").html('<div id="chart_area"><div id="chart"></div></div>');
-              ClickyChrome.Functions.drawPie(tmpData.slice(0, 10), tmpLabels.slice(0, 10), tmpStatURLs.slice(0, 10));
+              CM.func.drawPie(tmpData.slice(0, 10), tmpLabels.slice(0, 10), tmpStatURLs.slice(0, 10));
               $("#chart_area").append('<p id="link_to_clicky"><a class="external" href="'+linkUrl+'">'+linkText+'</a></p>');
               $("#chart_area").prepend('<h3>Top Browsers, Last 30 Days</h3>');
-              ClickyChrome.Popup.hideLoader();
-              if (ClickyChrome.Build.debug) console.log('Pie chart loaded');
+              CM.popup.hideLoader();
+							CM.log('Pie chart loaded');
             }
           }
         }

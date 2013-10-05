@@ -10,23 +10,21 @@
  * http://www.opensource.org/licenses/mit-license.php
  */
 
-var ClickyChrome = ClickyChrome || {};
+CM.options = {};
 
-ClickyChrome.Options = {};
-
-ClickyChrome.Options.debug = chrome.extension.getBackgroundPage().ClickyChrome.Background.debug;
+CM.options.debug = chrome.extension.getBackgroundPage().CM.bg.debug;
 
 $(function(){
 
-  $(".edit_site").live("click", function(){
+  $(".edit_site").on("click", function(){
     $(this).parents("tr").find("div").toggleClass("off");
     $(this).parent("span").remove();
     return false;
   });
 
-  $(".remove_site").live("click", function(){
+  $(".remove_site").on("click", function(){
     $(this).parents("tr").remove();
-    ClickyChrome.Options.checkSites();
+    CM.options.checkSites();
     return false;
   });
 
@@ -37,7 +35,7 @@ $(function(){
       '<td><div class="input_key"><input class="input_key" name="key[]" /></div></td>'+
       '<td><span><a href="#" class="remove_site">remove</a></td></tr>';
     $("tbody").append(string);
-    ClickyChrome.Options.checkSites();
+    CM.options.checkSites();
     return false;
   });
 
@@ -54,15 +52,15 @@ $(function(){
   $("#options_help, #context_help").colorbox({title: true});
 
   $("#wipe").click(function(){
-    ClickyChrome.Options.wipeData();
+    CM.options.wipeData();
   });
 
   $("#goal_notification").change(function(){
-    ClickyChrome.Options.checkVis($(this));
+    CM.options.checkVis($(this));
   });
 
-  $("#sample_notification").live("click", function(){
-    chrome.extension.getBackgroundPage().ClickyChrome.Background.createSampleNotification();
+  $("#sample_notification").on("click", function(){
+    chrome.extension.getBackgroundPage().CM.bg.createSampleNotification();
     return false;
   });
 
@@ -124,7 +122,7 @@ $(function(){
       else{
         // A little JS-fu to get things into a nice object
         var data = $.deparam($(this).serialize());
-        ClickyChrome.Options.saveData(data);
+        CM.options.saveData(data);
         return false;
       }
     }
@@ -162,7 +160,7 @@ $(function(){
               imported.id.push(data[i].site_id);
               imported.key.push(data[i].sitekey);
             }
-            ClickyChrome.Options.saveImported(imported);
+            CM.options.saveImported(imported);
           }
         }
       },
@@ -185,18 +183,18 @@ $(function(){
     return ui;
   };
 
-  $("tbody").sortable({
-    axis: 'y',
-    handle: 'img',
-    cursor: 'move',
-    helper: fixHelper,
-    forcePlaceholderSize: true,
-    tolerance: 'pointer'
-  });
+//  $("tbody").sortable({
+//    axis: 'y',
+//    handle: 'img',
+//    cursor: 'move',
+//    helper: fixHelper,
+//    forcePlaceholderSize: true,
+//    tolerance: 'pointer'
+//  });
 
 });
 
-ClickyChrome.Options.vars = {
+CM.options.vars = {
   nameArray: [],
   urlArray: [],
   idArray: [],
@@ -204,27 +202,33 @@ ClickyChrome.Options.vars = {
   currentArray: []
 };
 
-ClickyChrome.Options.init = function(){
-  if (typeof localStorage["clickychrome_names"] != "undefined"){
-    if (localStorage["clickychrome_names"].indexOf(',') == -1){
-      this.vars.nameArray[0] = localStorage["clickychrome_names"];
-      this.vars.urlArray[0] = localStorage["clickychrome_urls"];
-      this.vars.idArray[0] = localStorage["clickychrome_ids"];
-      this.vars.keyArray[0] = localStorage["clickychrome_keys"];
+CM.options.init = function(){
+
+
+  var ls = store.get('cm');
+
+  CM.log('Options init:', ls);
+
+  if (!_.isUndefined(ls.names)){
+    if (!~ls.names.indexOf(',')){
+      this.vars.nameArray[0] = ls.names;
+      this.vars.urlArray[0] = ls.urls;
+      this.vars.idArray[0] = ls.ids;
+      this.vars.keyArray[0] = ls.keys;
     }
     else{
-      this.vars.nameArray = localStorage["clickychrome_names"].split(',');
-      this.vars.urlArray = localStorage["clickychrome_urls"].split(',');
-      this.vars.idArray = localStorage["clickychrome_ids"].split(',');
-      this.vars.keyArray = localStorage["clickychrome_keys"].split(',');
+      this.vars.nameArray = ls.names.split(',');
+      this.vars.urlArray = ls.urls.split(',');
+      this.vars.idArray = ls.ids.split(',');
+      this.vars.keyArray = ls.keys.split(',');
     }
 
-    if (typeof localStorage["clickychrome_currentSite"] == "undefined"){
+    if (_.isUndefined(ls.currentSite) || ls.currentSite == ''){
       this.resetCurrent();
     }
     else{
       var name_match = 0, id_match = 0, key_match = 0;
-      this.vars.currentArray = localStorage["clickychrome_currentSite"].split(',');
+      this.vars.currentArray = ls.currentSite.split(',');
       for (var i = 0, c = this.vars.nameArray.length; i < c; i++){
         if (this.vars.nameArray[i] == this.vars.currentArray[2]) name_match = 1;
         if (this.vars.keyArray[i] == this.vars.currentArray[1]) key_match = 1;
@@ -236,68 +240,69 @@ ClickyChrome.Options.init = function(){
     }
   }
   $(".color_input").each(function(){
-    if ($(this).val() == localStorage["clickychrome_badgeColor"])
-      $(this).attr("checked", "checked");
+    if ($(this).val() == ls.badgeColor)
+      $(this).attr("checked", true);
   });
   $(".spy_type").each(function(){
-    if ($(this).val() == localStorage["clickychrome_spyType"])
-      $(this).attr("checked", "checked");
+    if ($(this).val() == ls.spyType)
+      $(this).attr("checked", true);
   });
-  $("#goal_notification").val(localStorage["clickychrome_goalNotification"]);
-  $("#goal_timeout").val(localStorage["clickychrome_goalTimeout"]);
+  $("#goal_notification").val(ls.goalNotification);
+  $("#goal_timeout").val(ls.goalTimeout);
   if ($("#goal_notification").val() == 'no') $("#goal_notification").parent("li").next().hide();
   $("#problems, #import").slideUp('fast');
   $("#import_error").hide();
   $("#username, #password").val('');
 
+  CM.log(this.vars);
+
   this.buildSiteTable();
 };
 
-ClickyChrome.Options.saveData = function(data){
-  if (this.debug) console.log(data);
-  localStorage["clickychrome_names"] = data.name.join(',');
-  localStorage["clickychrome_urls"] = data.url.join(',');
-  localStorage["clickychrome_ids"] = data.id.join(',');
-  localStorage["clickychrome_keys"] = data.key.join(',');
-  localStorage["clickychrome_badgeColor"] = data.badgeColor;
-  localStorage["clickychrome_spyType"] = data.spyType;
-  localStorage["clickychrome_goalNotification"] = data.goalNotification;
-  localStorage["clickychrome_goalTimeout"] = data.goalTimeout;
+CM.options.saveData = function(data){
+  CM.log('saveData:', data);
+  var obj = {
+    'names': data.name.join(','),
+    'urls': data.url.join(','),
+    'ids': data.id.join(','),
+    'keys': data.key.join(','),
+    'badgeColor': data.badgeColor,
+    'spyType': data.spyType,
+    'goalNotification': data.goalNotification,
+    'goalTimeout': data.goalTimeout
+  }
+  CM.extend(obj);
 
   this.init();
   $("#save_feedback").show().text('Options saved. You can close this tab.').delay(6000).fadeOut(1000);
-  chrome.extension.getBackgroundPage().ClickyChrome.Background.init();
+  chrome.extension.getBackgroundPage().CM.bg.init();
 };
 
-ClickyChrome.Options.saveImported = function(data){
-  if (this.debug) console.log(data);
-  localStorage["clickychrome_names"] = data.name.join(',');
-  localStorage["clickychrome_urls"] = data.url.join(',');
-  localStorage["clickychrome_ids"] = data.id.join(',');
-  localStorage["clickychrome_keys"] = data.key.join(',');
+CM.options.saveImported = function(data){
+  CM.log('saveImported', data);
+
+  var obj = {
+    'names': data.name.join(','),
+    'urls': data.url.join(','),
+    'ids': data.id.join(','),
+    'keys': data.key.join(',')
+  };
+
+  CM.extend(obj);
 
   this.init();
-  chrome.extension.getBackgroundPage().ClickyChrome.Background.init();
+  chrome.extension.getBackgroundPage().CM.bg.init();
 };
 
-ClickyChrome.Options.wipeData = function(){
-  delete localStorage["clickychrome_names"];
-  delete localStorage["clickychrome_urls"];
-  delete localStorage["clickychrome_ids"];
-  delete localStorage["clickychrome_keys"];
-  delete localStorage["clickychrome_badgeColor"];
-  delete localStorage["clickychrome_currentSite"];
-  delete localStorage["clickychrome_currentChart"];
-  delete localStorage["clickychrome_spyType"];
-  delete localStorage["clickychrome_goalNotification"];
-  delete localStorage["clickychrome_goalTimeout"];
+CM.options.wipeData = function(){
+  store.remove('cm');
   chrome.tabs.getSelected(null, function(tab){
     chrome.tabs.remove(tab.id);
   });
-  chrome.extension.getBackgroundPage().ClickyChrome.Background.init();
+  chrome.extension.getBackgroundPage().CM.bg.init();
 };
 
-ClickyChrome.Options.buildSiteTable = function(){
+CM.options.buildSiteTable = function(){
   $("tbody").empty();
   for (var i = 0, c = this.vars.nameArray.length; i < c; i++){
     var string = '<tr><td><div class="input_name"><img title="Drag to re-order" class="grip" src="/images/grippy.png" />'+
@@ -313,7 +318,7 @@ ClickyChrome.Options.buildSiteTable = function(){
   this.checkSites();
 };
 
-ClickyChrome.Options.checkSites = function(){
+CM.options.checkSites = function(){
   var num = $('tbody tr[id!=reminder]').length;
   if (num == 0){
     var string = '<tr id="reminder"><td colspan="5">You must add at least one site from your Clicky account to use this extension.</td></tr>';
@@ -324,11 +329,15 @@ ClickyChrome.Options.checkSites = function(){
   }
 };
 
-ClickyChrome.Options.resetCurrent = function(){
-  localStorage["clickychrome_currentSite"] = this.vars.idArray[0]+','+this.vars.keyArray[0]+','+this.vars.nameArray[0];
+CM.options.resetCurrent = function(){
+  CM.extend({'currentSite': this.vars.idArray[0]+','+this.vars.keyArray[0]+','+this.vars.nameArray[0]});
 };
 
-ClickyChrome.Options.checkVis = function(el){
+CM.options.checkVis = function(el){
   if (el.val() == 'no') el.parent("li").next().hide();
   else el.parent("li").next().show();
 };
+
+$(function(){
+  CM.options.init();
+});

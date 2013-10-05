@@ -10,278 +10,336 @@
  * http://www.opensource.org/licenses/mit-license.php
  */
 
-var ClickyChrome = ClickyChrome || {};
+CM.bg = {
+	vars: {
+		type: 'live', // test or live
+		listening: 0,
+		regress: 0,
+		level: 0,
+		touched: 0,
+		nCount: 0,
+		offset: 0,
+		spy: null,
+		check: null,
+		expire: null,
+		idleCheck: {
+			test: 490,
+			live: 59900
+		},
+		spyTimes: {
+			test: {
+				t1: 1000,
+				t2: 1000,
+				t3: 1000,
+				t4: 1000
+			},
+			live: {
+				t1: 60000,
+				t2: 120000,
+				t3: 300000,
+				t4: 600000
+			}
+		},
+		checkTimes: {
+			test: {
+				t1: 500,
+				t2: 1000,
+				t3: 1500,
+				t4: 2000
+			},
+			live: {
+				t1: 600000,
+				t2: 1800000,
+				t3: 3600000,
+				t4: 7200000
+			}
+		},
+		notifications: {},
+		showNotifications: true,
+		goalTime: 0,
+		goalLog: {},
+		startTime: new Date().getTime(),
+		titleInfo: {
+			online: {
+				titleString: 'Visitors Online: '
+			},
+			goals: {
+				titleString: 'Goals Completed: '
+			},
+			visitors: {
+				titleString: 'Visitors Today: '
+			}
+		},
+		contextMenu: 0
+	}
+};
 
-ClickyChrome.Background = {};
 
-ClickyChrome.Background.debug = false; // log events to console
-
-ClickyChrome.Background.vars = {
-  type: 'live', // test or live
-  listening: 0,
-  regress: 0,
-  level: 0,
-  touched: 0,
-  nCount: 0,
-  offset: 0,
-  spy: null,
-  check: null,
-  expire: null,
-  idleCheck: {
-    test: 490,
-    live: 59900
-  },
-  spyTimes: {
-    test: {
-      t1: 1000,
-      t2: 1000,
-      t3: 1000,
-      t4: 1000
-    },
-    live: {
-      t1: 60000,
-      t2: 120000,
-      t3: 300000,
-      t4: 600000
-    }
-  },
-  checkTimes: {
-    test: {
-      t1: 500,
-      t2: 1000,
-      t3: 1500,
-      t4: 2000
-    },
-    live: {
-      t1: 600000,
-      t2: 1800000,
-      t3: 3600000,
-      t4: 7200000
-    }
-  },
-  notifications: {},
-  showNotifications: true,
-  goalTime: 0,
-  goalLog: {},
-  startTime: new Date().getTime(),
-  titleInfo: {
-    online: {
-      titleString: 'Visitors Online: '
-    },
-    goals: {
-      titleString: 'Goals Completed: '
-    },
-    visitors: {
-      titleString: 'Visitors Today: '
-    }
-  },
-  contextMenu: 0
+/**
+ * Opens CM options page
+ */
+CM.bg.showOptions = function(){
+	var windowUrl = chrome.extension.getURL("options.html");
+	chrome.tabs.create({"url": windowUrl, "selected": true});
 };
 
 /**
- * Opens ClickyChrome options page
+ * One-time housekeeping to update local storage
  */
-ClickyChrome.Background.showOptions = function(){
-  var windowUrl = chrome.extension.getURL("options.html");
-  chrome.tabs.create({"url": windowUrl, "selected": true});
+CM.bg.upgradeLocalStorage = function(){
+	CM.log('localStorage out of date, updating...');
+
+	// Remove each 'clickychrome_' localStorage variable
+	$.each(localStorage, function(k, v){
+		if (k.substring(0, 13) == 'clickychrome_'){
+			CM.set(k.substring(13), v);
+			delete localStorage[k];
+		}
+	});
+
+	// Consolidate sites
+	if (CM.get('keys')){
+		var idArray = CM.get('ids').split(',');
+		var keyArray = CM.get('keys').split(',');
+		var nameArray = CM.get('names').split(',');
+		var urlArray = CM.get('urls').split(',');
+		var newSites = [];
+
+		$.each(idArray, function(idx, val){
+			newSites.push({
+				id: val,
+				key: keyArray[idx],
+				name: nameArray[idx],
+				url: urlArray[idx]
+			});
+		});
+
+		CM.set('sites', newSites);
+
+		// Get rid of the old properties
+		var cm = CM.get();
+		delete cm.ids;
+		delete cm.keys;
+		delete cm.names;
+		delete cm.urls;
+		store.set('cm', cm);
+	}
+
+	// Fix currentSite
+	var oldCurrent = CM.get('currentSite');
+	if (_.isString(oldCurrent) && ~oldCurrent.indexOf(',')){
+		var currentArray = oldCurrent.split(',');
+		var newCurrent = {
+			id: currentArray[0],
+			key: currentArray[1],
+			name: currentArray[2]
+		}
+		CM.set('currentSite', newCurrent);
+	}
+
 };
 
 /**
  * Initialize everything
  */
-ClickyChrome.Background.init = function(){
-  if (this.debug && this.vars.listening == 0) console.log('###### START ######');
+CM.bg.init = function(){
+	if (this.vars.listening == 0) CM.log('###### START ######');
 
-  // Set some defaults
-  if (typeof localStorage["clickychrome_badgeColor"] == "undefined")
-    localStorage["clickychrome_badgeColor"] = "0,0,0,200";
-  if (typeof localStorage["clickychrome_currentChart"] == "undefined")
-    localStorage["clickychrome_currentChart"] = "visitors";
-  if (typeof localStorage["clickychrome_customName"] == "undefined")
-    localStorage["clickychrome_customName"] = "yes";
-  if (typeof localStorage["clickychrome_spyType"] == "undefined")
-    localStorage["clickychrome_spyType"] = "online";
-  if (typeof localStorage["clickychrome_goalNotification"] == "undefined")
-    localStorage["clickychrome_goalNotification"] = "no";
-  if (typeof localStorage["clickychrome_goalTimeout"] == "undefined")
-    localStorage["clickychrome_goalTimeout"] = "10";
-  if (typeof localStorage["clickychrome_urls"] == "undefined" && typeof localStorage["clickychrome_ids"] != "undefined"){
-    var names = localStorage["clickychrome_names"].split(','),
-      blankUrls = [];
-    for (var j = 0, cn = names.length; j < cn; j++){
-      blankUrls[j] = '';
-    }
-    localStorage["clickychrome_urls"] = blankUrls.join(',');
-  }
 
-  var colors = localStorage["clickychrome_badgeColor"].split(',');
-  chrome.browserAction.setBadgeBackgroundColor({color: [Number(colors[0]), Number(colors[1]), Number(colors[2]),
-    Number(colors[3])]});
 
-  // If no current site, show options page
-  if (typeof localStorage["clickychrome_currentSite"] == "undefined"){
-    ClickyChrome.Functions.setTitle('ClickyChrome');
-    if (this.vars.spy){
-      clearInterval(this.vars.spy);
-      this.vars.spy = null;
-    }
-    this.showOptions();
-  }
-  // Otherwise, start it up
-  else{
-    this.vars.regress = 0;
-    this.resetIdle();
-    this.setRefresh(this.vars.spyTimes[this.vars.type].t1);
-    // Listen for browser idle
-    if (this.vars.listening == 0){
-      this.beginListen();
-      this.vars.check = setInterval(this.checkIdle, this.vars.idleCheck[this.vars.type]);
-    }
-  }
+	// Set some defaults
+	var defaults = {
+		badgeColor: '0,0,0,200',
+		currentChart: 'visitors',
+		currentDate: 'today',
+		customName: 'yes',
+		goalNotification: 'no',
+		goalTimeout: 10,
+		spyType: 'online'
+	};
 
-  // Context menu
-  if (typeof localStorage["clickychrome_urls"] != "undefined"){
-    var urls = localStorage["clickychrome_urls"].split(','),
-      patterns = [], clean;
-    for (var i = 0, c = urls.length; i < c; i++){
-      if (urls[i] != ''){
-        clean = urls[i].replace(/^((?:[a-z][a-z0-9+\-.]*:)?(?:\/\/)?(?:www\.)?)/ig, "");
-        patterns.push('*://'+clean+'/*');
-        patterns.push('*://www.'+clean+'/*');
-      }
-    }
-    if (this.vars.contextMenu != 0){
-      if (patterns.length == 0){
-        chrome.contextMenus.remove(this.vars.contextMenu, function(){
-          if (ClickyChrome.Background.debug) console.log('Context menu destroyed');
-          ClickyChrome.Background.vars.contextMenu = 0;
-        });
-      }
-      else{
-        chrome.contextMenus.update(this.vars.contextMenu, {documentUrlPatterns: patterns}, function(){
-          if (ClickyChrome.Background.debug) console.log('Context menu updated with patterns: '+patterns.join(', '));
-        });
-      }
-    }
-    else{
-      if (patterns.length != 0){
-        this.vars.contextMenu = chrome.contextMenus.create({title: "View page stats", documentUrlPatterns: patterns, contexts:
-          ["all"], onclick: this.handleContext}, function(){
-          if (ClickyChrome.Background.debug) console.log('Context menu created with patterns: '+patterns.join(', '));
-        });
-      }
-    }
-  }
+	if (!CM.get() || CM.get('keys') || _.isString(CM.get('currentSite'))){
+		this.upgradeLocalStorage();
+	}
+
+	for (var key in defaults){
+		if (defaults.hasOwnProperty(key) && !CM.get(key)){
+			CM.log('Default "%s" not set, setting to "%s"', key, defaults[key]);
+			var newObj = {};
+			newObj[key] = defaults[key];
+			CM.extend(newObj);
+		}
+	}
+
+	console.log(CM.get());
+
+	// Set badge color
+	var colors = CM.get('badgeColor').split(',');
+	chrome.browserAction.setBadgeBackgroundColor({
+		color: [Number(colors[0]), Number(colors[1]), Number(colors[2]), Number(colors[3])]
+	});
+
+	// If no current site, show options page
+	if (!CM.get('currentSite')){
+		CM.func.setTitle('Clicky Monitor');
+		if (this.vars.spy){
+			clearInterval(this.vars.spy);
+			this.vars.spy = null;
+		}
+		this.showOptions();
+	}
+	// Otherwise, start it up
+	else{
+		this.vars.regress = 0;
+		this.resetIdle();
+		this.setRefresh(this.vars.spyTimes[this.vars.type].t1);
+		// Listen for browser idle
+		if (this.vars.listening == 0){
+			this.beginListen();
+			this.vars.check = setInterval(this.checkIdle, this.vars.idleCheck[this.vars.type]);
+		}
+	}
+
+	// Context menu
+	var patterns = [];
+	$.each(CM.get('sites'), function(idx, site){
+		if (site.url != ''){
+			var clean = site.url.replace(/^((?:[a-z][a-z0-9+\-.]*:)?(?:\/\/)?(?:www\.)?)/ig, "");
+			patterns.push('*://'+clean+'/*');
+			patterns.push('*://www.'+clean+'/*');
+		}
+	});
+	if (this.vars.contextMenu != 0){
+		if (patterns.length == 0){
+			chrome.contextMenus.remove(this.vars.contextMenu, function(){
+				CM.log('Context menu destroyed');
+				CM.bg.vars.contextMenu = 0;
+			});
+		}
+		else{
+			chrome.contextMenus.update(this.vars.contextMenu, {documentUrlPatterns: patterns}, function(){
+				CM.log('Context menu updated with patterns: '+patterns.join(', '));
+			});
+		}
+	}
+	else{
+		if (patterns.length != 0){
+			this.vars.contextMenu = chrome.contextMenus.create({title: "View page stats", documentUrlPatterns: patterns, contexts:
+				["all"], onclick: this.handleContext}, function(){
+				CM.log('Context menu created with patterns: '+patterns.join(', '));
+			});
+		}
+	}
 
 };
 
 /**
  * Query API for updated counts and completed goals
  */
-ClickyChrome.Background.checkSpy = function(){
-  if (ClickyChrome.Background.debug) console.log('Spy');
+CM.bg.checkSpy = function(){
+	CM.log('Spy');
 
-  ClickyChrome.Background.updateGoalTime();
+	CM.bg.updateGoalTime();
 
-  var type = ClickyChrome.Background.vars.type,
-    offset = ClickyChrome.Background.vars.goalTime;
+	var type = CM.bg.vars.type,
+		offset = CM.bg.vars.goalTime;
 
-  // Spy type variables
-  var spyTypeInfo = {
-    online: {
-      urlString: localStorage["clickychrome_goalNotification"] == "yes" ? '&type=visitors-online,visitors-list&goal=*&time_offset='+offset :
-        '&type=visitors-online'
-    },
-    goals: {
-      urlString: localStorage["clickychrome_goalNotification"] == "yes" ? '&type=goals,visitors-list&goal=*&time_offset='+offset :
-        '&type=goals'
-    },
-    visitors: {
-      urlString: localStorage["clickychrome_goalNotification"] == "yes" ? '&type=visitors,visitors-list&goal=*&time_offset='+offset :
-        '&type=visitors'
-    }
-  };
+	// Spy type variables
+	var spyTypeInfo = {
+		online: {
+			urlString: CM.get('goalNotification') == "yes" ? '&type=visitors-online,visitors-list&goal=*&time_offset='+offset :
+				'&type=visitors-online'
+		},
+		goals: {
+			urlString: CM.get('goalNotification') == "yes" ? '&type=goals,visitors-list&goal=*&time_offset='+offset :
+				'&type=goals'
+		},
+		visitors: {
+			urlString: CM.get('goalNotification') == "yes" ? '&type=visitors,visitors-list&goal=*&time_offset='+offset :
+				'&type=visitors'
+		}
+	};
 
-  // Make sure a current site is selected before we proceed
-  if (typeof localStorage["clickychrome_currentSite"] != "undefined"){
+	// Make sure a current site is selected before we proceed
+	if (CM.get('currentSite')){
 
-    var siteInfo = localStorage["clickychrome_currentSite"].split(',');
+		var siteInfo = CM.get('currentSite');
 
-    ClickyChrome.Background.updateTitle(siteInfo);
+		CM.bg.updateTitle(siteInfo);
 
-    var apiString = 'http://api.getclicky.com/api/stats/4?site_id='+siteInfo[0]+'&sitekey='+siteInfo[1]+
-      spyTypeInfo[localStorage["clickychrome_spyType"]].urlString+'&date=today&output=json&app=clickychrome';
+		var apiString = 'http://api.getclicky.com/api/stats/4?site_id='+siteInfo.id+'&sitekey='+siteInfo.key+
+			spyTypeInfo[CM.get('spyType')].urlString+'&date=today&output=json&app=clickychrome';
 
-    if (type == 'live'){
-      $.ajax({
-        url: apiString,
-        cache: false,
-        contentType: "application/json; charset=utf-8",
-        dataType: "json",
-        success: function(data){
-          if (data && data[0]){
-            if (data[0].error){
-              ClickyChrome.Functions.setTitle(data[0].error);
-              console.log(data[0].error);
-              ClickyChrome.Functions.setBadgeText('ERR');
-            }
-            else{
-              ClickyChrome.Functions.setBadgeNum(data[0].dates[0].items[0].value);
-              if (localStorage["clickychrome_goalNotification"] == "yes"){
-                if (data[1].dates[0].items[0]){
-                  if (ClickyChrome.Background.debug) console.log('Goals completed');
-                  ClickyChrome.Background.createNotification(data[1].dates[0].items);
-                }
-              }
-            }
-          }
-        },
-        error: function(XMLHttpRequest, textStatus, errorThrown){
-          console.log("Status: "+textStatus+", Error: "+errorThrown);
-          console.log(XMLHttpRequest.responseText);
-          ClickyChrome.Functions.setBadgeText('ERR');
-        }
-      });
-    }
-    if (type == 'test'){
-      ClickyChrome.Functions.setBadgeText('ABC');
-    }
+		if (type == 'live'){
+			$.ajax({
+				url: apiString,
+				cache: false,
+				contentType: "application/json; charset=utf-8",
+				dataType: "json",
+				success: function(data){
+					if (data && data[0]){
+						if (data[0].error){
+							CM.func.setTitle(data[0].error);
+							console.log(data[0].error);
+							CM.func.setBadgeText('ERR');
+						}
+						else{
+							CM.func.setBadgeNum(data[0].dates[0].items[0].value);
+							if (CM.get('goalNotification') == "yes"){
+								if (data[1].dates[0].items[0]){
+									CM.log('Goals completed');
+									CM.bg.createNotification(data[1].dates[0].items);
+								}
+							}
+						}
+					}
+				},
+				error: function(XMLHttpRequest, textStatus, errorThrown){
+					console.log("Status: "+textStatus+", Error: "+errorThrown);
+					console.log(XMLHttpRequest.responseText);
+					CM.func.setBadgeText('ERR');
+				}
+			});
+		}
+		if (type == 'test'){
+			CM.func.setBadgeText('ABC');
+		}
 
-  }
-  else{
-    ClickyChrome.Functions.setTitle('ClickyChrome');
-  }
+	}
+	else{
+		CM.func.setTitle('CM');
+	}
 
-  if (ClickyChrome.Background.debug){
-    console.log('Goal log...')
-    console.log(ClickyChrome.Background.vars.goalLog);
-  }
+	if (CM.bg.debug){
+		CM.log('Goal log:', CM.bg.vars.goalLog);
+	}
 };
 
 /**
  * Attach event listeners to detect browser idle time
  */
-ClickyChrome.Background.beginListen = function(){
-  this.vars.listening = 1;
-  chrome.tabs.onSelectionChanged.addListener(function(){
-    ClickyChrome.Background.resetIdle();
-  });
-  chrome.tabs.onUpdated.addListener(function(){
-    ClickyChrome.Background.resetIdle();
-  });
+CM.bg.beginListen = function(){
+	this.vars.listening = 1;
+	chrome.tabs.onSelectionChanged.addListener(function(){
+		CM.bg.resetIdle();
+	});
+	chrome.tabs.onUpdated.addListener(function(){
+		CM.bg.resetIdle();
+	});
 };
 
 /**
  * Resets the idle timer
  */
-ClickyChrome.Background.resetIdle = function(){
-  this.vars.touched = new Date().getTime();
-  if (this.vars.regress == 1){
-    this.vars.level = 0;
-    this.vars.regress = 0;
-    this.setRefresh(this.vars.spyTimes[this.vars.type].t1);
-    if (this.debug) console.log('Idle reset, regress level 1');
-  }
+CM.bg.resetIdle = function(){
+	this.vars.touched = new Date().getTime();
+	if (this.vars.regress == 1){
+		this.vars.level = 0;
+		this.vars.regress = 0;
+		this.setRefresh(this.vars.spyTimes[this.vars.type].t1);
+
+		CM.log('Idle reset, regress level 1');
+	}
 };
 
 /**
@@ -290,81 +348,81 @@ ClickyChrome.Background.resetIdle = function(){
  * @param {int} delay
  *    Time delay between checks in milliseconds
  */
-ClickyChrome.Background.setRefresh = function(delay){
-  this.checkSpy();
-  if (this.vars.spy){
-    clearInterval(this.vars.spy);
-    this.vars.spy = null;
-  }
-  this.vars.spy = setInterval(this.checkSpy, delay);
-  this.toggleLevel();
+CM.bg.setRefresh = function(delay){
+	this.checkSpy();
+	if (this.vars.spy){
+		clearInterval(this.vars.spy);
+		this.vars.spy = null;
+	}
+	this.vars.spy = setInterval(this.checkSpy, delay);
+	this.toggleLevel();
 };
 
 /**
  * Toggles 'level' between 0 and 1 to facilitate steping between delay levels
  */
-ClickyChrome.Background.toggleLevel = function(){
-  this.vars.level = this.vars.level == 0 ? 1 : 0;
+CM.bg.toggleLevel = function(){
+	this.vars.level = this.vars.level == 0 ? 1 : 0;
 };
 
 /**
  * Stops all extension refreshing after broswer has been idle for 2 hours
  */
-ClickyChrome.Background.stopRefresh = function(){
-  if (this.vars.spy){
-    clearInterval(this.vars.spy);
-    this.vars.spy = null;
-  }
-  if (this.vars.check){
-    clearInterval(this.vars.check);
-    this.vars.check = null;
-    this.vars.listening = 0;
-  }
-  this.vars.level = 1;
-  ClickyChrome.Functions.setBadgeText('IDLE');
+CM.bg.stopRefresh = function(){
+	if (this.vars.spy){
+		clearInterval(this.vars.spy);
+		this.vars.spy = null;
+	}
+	if (this.vars.check){
+		clearInterval(this.vars.check);
+		this.vars.check = null;
+		this.vars.listening = 0;
+	}
+	this.vars.level = 1;
+	CM.func.setBadgeText('IDLE');
 };
 
 /**
  * Checks browser idle time and adjusts check frequency accordingly
  */
-ClickyChrome.Background.checkIdle = function(){
-  var local = ClickyChrome.Background.vars,
-    now = new Date().getTime(),
-    diff = now-local.touched;
+CM.bg.checkIdle = function(){
+	var local = CM.bg.vars,
+		now = new Date().getTime(),
+		diff = now-local.touched;
 
-  if (diff > local.checkTimes[local.type].t1) ClickyChrome.Background.vars.regress = 1;
-  if (diff > local.checkTimes[local.type].t1 && diff < local.checkTimes[local.type].t2){
-    if (local.level == 1){
-      ClickyChrome.Background.setRefresh(local.spyTimes[local.type].t2);
-      // Change color for testing
-      if (local.type == 'test') ClickyChrome.Functions.setBadgeColor([255, 0, 0, 200]);
-      if (ClickyChrome.Background.debug) console.log('Regress level 2');
-    }
-  }
-  else if (diff > local.checkTimes[local.type].t2 && diff < local.checkTimes[local.type].t3){
-    if (local.level == 0){
-      ClickyChrome.Background.setRefresh(local.spyTimes[local.type].t3);
-      // Change color for testing
-      if (local.type == 'test') ClickyChrome.Functions.setBadgeColor([0, 255, 0, 200]);
-      if (ClickyChrome.Background.debug) console.log('Regress level 3');
-    }
-  }
-  else if (diff > local.checkTimes[local.type].t3 && diff < local.checkTimes[local.type].t4){
-    if (local.level == 1){
-      ClickyChrome.Background.setRefresh(local.spyTimes[local.type].t4);
-      // Change color for testing
-      if (local.type == 'test') ClickyChrome.Functions.setBadgeColor([0, 0, 255, 200]);
-      if (ClickyChrome.Background.debug) console.log('Regress level 4');
-    }
-  }
-  else if (diff > local.checkTimes[local.type].t4){
-    if (local.level == 0){
-      ClickyChrome.Background.stopRefresh();
-      // Change color for testing
-      if (local.type == 'test') ClickyChrome.Functions.setBadgeColor([0, 0, 0, 200]);
-      if (ClickyChrome.Background.debug) console.log('Regress level 5');
-    }
-  }
+	if (diff > local.checkTimes[local.type].t1) CM.bg.vars.regress = 1;
+	if (diff > local.checkTimes[local.type].t1 && diff < local.checkTimes[local.type].t2){
+		if (local.level == 1){
+			CM.bg.setRefresh(local.spyTimes[local.type].t2);
+			// Change color for testing
+			if (local.type == 'test') CM.func.setBadgeColor([255, 0, 0, 200]);
+			CM.log('Regress level 2');
+		}
+	}
+	else if (diff > local.checkTimes[local.type].t2 && diff < local.checkTimes[local.type].t3){
+		if (local.level == 0){
+			CM.bg.setRefresh(local.spyTimes[local.type].t3);
+			// Change color for testing
+			if (local.type == 'test') CM.func.setBadgeColor([0, 255, 0, 200]);
+			CM.log('Regress level 3');
+		}
+	}
+	else if (diff > local.checkTimes[local.type].t3 && diff < local.checkTimes[local.type].t4){
+		if (local.level == 1){
+			CM.bg.setRefresh(local.spyTimes[local.type].t4);
+			// Change color for testing
+			if (local.type == 'test') CM.func.setBadgeColor([0, 0, 255, 200]);
+			CM.log('Regress level 4');
+		}
+	}
+	else if (diff > local.checkTimes[local.type].t4){
+		if (local.level == 0){
+			CM.bg.stopRefresh();
+			// Change color for testing
+			if (local.type == 'test') CM.func.setBadgeColor([0, 0, 0, 200]);
+			CM.log('Regress level 5');
+		}
+	}
 };
 
 /**
@@ -373,41 +431,38 @@ ClickyChrome.Background.checkIdle = function(){
  * @param {array} data
  *    Goal data from API response
  */
-ClickyChrome.Background.createNotification = function(data){
-  if (this.vars.showNotifications === false) return true;
+CM.bg.createNotification = function(data){
+	if (this.vars.showNotifications === false) return true;
 
-  var nData = ClickyChrome.Process.goals(data);
+	var nData = CM.process.goals(data);
 
-  if (nData !== false){
+	if (nData !== false){
 
-    if (this.debug){
-      console.log('Notification data...')
-      console.log(nData);
-    }
+		CM.log('Notification data', nData);
 
-    this.vars.nCount += 1;
-    var newNotification = webkitNotifications.createHTMLNotification(
-      'notifications.html?id='+this.vars.nCount+'&'+$.param(nData)
-    );
-    newNotification.id = this.vars.nCount;
-    newNotification.onclose = function(){
-      delete ClickyChrome.Background.vars.notifications[this.id];
-      if (ClickyChrome.Background.debug) console.log('Notification '+this.id+' closed');
-    };
-    this.vars.notifications[this.vars.nCount] = newNotification;
-    newNotification.show();
+		this.vars.nCount += 1;
+		var newNotification = webkitNotifications.createHTMLNotification(
+			'notifications.html?id='+this.vars.nCount+'&'+$.param(nData)
+		);
+		newNotification.id = this.vars.nCount;
+		newNotification.onclose = function(){
+			delete CM.bg.vars.notifications[this.id];
+			CM.log('Notification '+this.id+' closed');
+		};
+		this.vars.notifications[this.vars.nCount] = newNotification;
+		newNotification.show();
 
-    this.expireNotification(this.vars.nCount);
-    if (this.debug) console.log('Notification '+this.vars.nCount+' created');
-  }
+		this.expireNotification(this.vars.nCount);
+		CM.log('Notification '+this.vars.nCount+' created');
+	}
 };
 
 /**
  * Creates sample HTML5 desktop notification
  */
-ClickyChrome.Background.createSampleNotification = function(){
-  var newNotification = webkitNotifications.createHTMLNotification('/help/sample_notification.html');
-  newNotification.show();
+CM.bg.createSampleNotification = function(){
+	var newNotification = webkitNotifications.createHTMLNotification('/help/sample_notification.html');
+	newNotification.show();
 };
 
 /**
@@ -416,14 +471,14 @@ ClickyChrome.Background.createSampleNotification = function(){
  * @param {int} id
  *    ID of notification to save
  */
-ClickyChrome.Background.stayNotification = function(id){
-  if (this.vars.expire && id == this.vars.nCount){
-    if (this.vars.expire){
-      clearTimeout(this.vars.expire);
-      this.vars.expire = null;
-      if (this.debug) console.log('Notification '+id+' saved');
-    }
-  }
+CM.bg.stayNotification = function(id){
+	if (this.vars.expire && id == this.vars.nCount){
+		if (this.vars.expire){
+			clearTimeout(this.vars.expire);
+			this.vars.expire = null;
+			CM.log('Notification '+id+' saved');
+		}
+	}
 };
 
 /**
@@ -432,13 +487,13 @@ ClickyChrome.Background.stayNotification = function(id){
  * @param {int} id
  *    ID of notification to expire
  */
-ClickyChrome.Background.expireNotification = function(id){
-  if (this.vars.expire){
-    clearTimeout(this.vars.expire);
-    this.vars.expire = null;
-  }
-  var timeout = Number(localStorage["clickychrome_goalTimeout"]) * 1000;
-  this.vars.expire = setTimeout(this.killNotification, timeout, id);
+CM.bg.expireNotification = function(id){
+	if (this.vars.expire){
+		clearTimeout(this.vars.expire);
+		this.vars.expire = null;
+	}
+	var timeout = Number(CM.get('goalTimeout')) * 1000;
+	this.vars.expire = setTimeout(this.killNotification, timeout, id);
 };
 
 /**
@@ -447,42 +502,39 @@ ClickyChrome.Background.expireNotification = function(id){
  * @param {int} id
  *    ID of notification to kill
  */
-ClickyChrome.Background.killNotification = function(id){
-  if (typeof ClickyChrome.Background.vars.notifications[id] == 'object'){
-    ClickyChrome.Background.vars.notifications[id].cancel();
-    if (ClickyChrome.Background.debug) console.log('Notification '+id+' expired');
-  }
-  else{
-    if (ClickyChrome.Background.debug) console.log('Notification '+id+' unable to close');
-  }
-  if (ClickyChrome.Background.vars.expire){
-    clearTimeout(ClickyChrome.Background.vars.expire);
-    ClickyChrome.Background.vars.expire = null;
-  }
+CM.bg.killNotification = function(id){
+	if (typeof CM.bg.vars.notifications[id] == 'object'){
+		CM.bg.vars.notifications[id].cancel();
+		CM.log('Notification '+id+' expired');
+	}
+	else{
+		CM.log('Notification '+id+' unable to close');
+	}
+	if (CM.bg.vars.expire){
+		clearTimeout(CM.bg.vars.expire);
+		CM.bg.vars.expire = null;
+	}
 };
 
 /**
- * Log function for notifications to use, because they aren't allowed to use console.log
- *
- * @param {mixed} what
- *    What to log, duh
+ * Log function
  */
-ClickyChrome.Background.log = function(what){
-  console.log(what);
+CM.bg.log = function(){
+	CM.bg.debug && console.log(Array.prototype.slice.call(arguments));
 };
 
 /**
  * Set time of last completed goal
  */
-ClickyChrome.Background.updateGoalTime = function(){
-  var t = new Date().getTime();
-  if (t-this.vars.startTime > 600000){
-    this.vars.goalTime = 600;
-  }
-  else{
-    this.vars.goalTime = Math.floor((t-this.vars.startTime) / 1000)+30;
-  }
-  if (this.debug) console.log('New offset: '+this.vars.goalTime);
+CM.bg.updateGoalTime = function(){
+	var t = new Date().getTime();
+	if (t-this.vars.startTime > 600000){
+		this.vars.goalTime = 600;
+	}
+	else{
+		this.vars.goalTime = Math.floor((t-this.vars.startTime) / 1000)+30;
+	}
+	CM.log('New offset: '+this.vars.goalTime);
 };
 
 /**
@@ -491,45 +543,42 @@ ClickyChrome.Background.updateGoalTime = function(){
  * @param {object} log
  *    Log of all notified goals
  */
-ClickyChrome.Background.updateGoalLog = function(log){
-  this.vars.goalLog = log;
-  if (this.debug) console.log('Goal log updated');
-  this.cleanGoalLog();
+CM.bg.updateGoalLog = function(log){
+	this.vars.goalLog = log;
+	CM.log('Goal log updated');
+	this.cleanGoalLog();
 };
 
 /**
  * Reset goal start time
  */
-ClickyChrome.Background.resetGoalStart = function(){
-  this.vars.startTime = new Date().getTime();
-  if (this.debug) console.log('Start time reset');
+CM.bg.resetGoalStart = function(){
+	this.vars.startTime = new Date().getTime();
+	CM.log('Start time reset');
 };
 
 /**
  * Garbage collection for goal log
  */
-ClickyChrome.Background.cleanGoalLog = function(){
-  var t = new Date().getTime(),
-    check = Math.floor(t / 1000);
-  for (var id in this.vars.goalLog){
-    if (this.vars.goalLog.hasOwnProperty(id)){
-      if (check-Number(this.vars.goalLog[id].timestamp) > 900){
-        delete this.vars.goalLog[id];
-        if (this.debug) console.log('#'+id+' deleted from log');
-      }
-    }
-  }
-  if (this.debug) console.log('Goal log cleaned');
+CM.bg.cleanGoalLog = function(){
+	var t = new Date().getTime(),
+		check = Math.floor(t / 1000);
+	for (var id in this.vars.goalLog){
+		if (this.vars.goalLog.hasOwnProperty(id)){
+			if (check-Number(this.vars.goalLog[id].timestamp) > 900){
+				delete this.vars.goalLog[id];
+				CM.log('#'+id+' deleted from log');
+			}
+		}
+	}
+	CM.log('Goal log cleaned');
 };
 
 /**
  * Updates extension title
- *
- * @param {array} siteInfo
- *    Array of site id, key and name
  */
-ClickyChrome.Background.updateTitle = function(siteInfo){
-  ClickyChrome.Functions.setTitle(this.vars.titleInfo[localStorage["clickychrome_spyType"]].titleString+siteInfo[2]);
+CM.bg.updateTitle = function(site){
+	CM.func.setTitle(this.vars.titleInfo[CM.get('spyType')].titleString+site.name);
 };
 
 /**
@@ -540,21 +589,23 @@ ClickyChrome.Background.updateTitle = function(siteInfo){
  * @param {object} tab
  *    Chrome tab object for page
  */
-ClickyChrome.Background.handleContext = function(info, tab){
-  var urlArray = localStorage["clickychrome_urls"].split(','),
-    idArray = localStorage["clickychrome_ids"].split(',');
+CM.bg.handleContext = function(info, tab){
+	var urlArray = CM.get('urls').split(','),
+		idArray = CM.get('ids').split(',');
 
-  for (var i = 0, c = urlArray.length; i < c; i++){
-    var re = new RegExp(urlArray[i], "ig");
-    if (re.test(info.pageUrl)){
-      if (ClickyChrome.Background.debug) console.log('Context matched '+urlArray[i]+', ID: '+idArray[i]);
-      var urlParts = info.pageUrl.split('/'),
-        contentUrl = 'http://getclicky.com/stats/visitors?site_id='+idArray[i]+'&href=';
-      for (var j = 3, cn = urlParts.length; j < cn; j++){
-        contentUrl += '/'+urlParts[j];
-      }
-      ClickyChrome.Functions.openUrl(contentUrl);
-      break;
-    }
-  }
+	for (var i = 0, c = urlArray.length; i < c; i++){
+		var re = new RegExp(urlArray[i], "ig");
+		if (re.test(info.pageUrl)){
+			CM.log('Context matched '+urlArray[i]+', ID: '+idArray[i]);
+			var urlParts = info.pageUrl.split('/'),
+				contentUrl = 'http://getclicky.com/stats/visitors?site_id='+idArray[i]+'&href=';
+			for (var j = 3, cn = urlParts.length; j < cn; j++){
+				contentUrl += '/'+urlParts[j];
+			}
+			CM.func.openUrl(contentUrl);
+			break;
+		}
+	}
 };
+
+CM.bg.init();

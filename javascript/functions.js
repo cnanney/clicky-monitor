@@ -10,9 +10,7 @@
  * http://www.opensource.org/licenses/mit-license.php
  */
 
-var ClickyChrome = ClickyChrome || {};
-
-ClickyChrome.Functions = {};
+CM.func = {};
 
 /**
  * Returns abbreviation for visitors online, e.g. 1,500 = 1.5K
@@ -22,8 +20,8 @@ ClickyChrome.Functions = {};
  *
  * @return string
  */
-ClickyChrome.Functions.abvNum = function(n){
-  var num = new Number(n);
+CM.func.abvNum = function(n){
+  var num = Number(n);
   if (num < 1000){
     return num;
   }
@@ -52,7 +50,7 @@ ClickyChrome.Functions.abvNum = function(n){
  *
  * @return string
  */
-ClickyChrome.Functions.abvTime = function(s){
+CM.func.abvTime = function(s){
   var sec = Number(s),
     hours = Math.floor(sec / 3600),
     minutes = Math.floor((sec % 3600) / 60),
@@ -78,7 +76,7 @@ ClickyChrome.Functions.abvTime = function(s){
  *
  * @return string
  */
-ClickyChrome.Functions.addCommas = function(n){
+CM.func.addCommas = function(n){
   var s = n.toString(),
     x = s.split('.'),
     x1 = x[0],
@@ -96,40 +94,29 @@ ClickyChrome.Functions.addCommas = function(n){
  * @param {string} url
  *    URL to open
  */
-ClickyChrome.Functions.openUrl = function(url){
+CM.func.openUrl = function(url){
   chrome.tabs.create({"url": url, "selected": true});
 };
 
 /**
  * Sets badge title (what you see when you hover over icon)
- *
- * @param {string} text
- *    Text to set
  */
-ClickyChrome.Functions.setTitle = function(text){
-  var strText = text.toString();
-  chrome.browserAction.setTitle({title: strText});
+CM.func.setTitle = function(text){
+  chrome.browserAction.setTitle({title: text.toString()});
 };
 
 /**
  * Sets badge text
- *
- * @param {string} text
- *    Text to set
  */
-ClickyChrome.Functions.setBadgeText = function(text){
-  var strText = text.toString();
-  chrome.browserAction.setBadgeText({text: strText});
+CM.func.setBadgeText = function(text){
+  chrome.browserAction.setBadgeText({text: text.toString()});
 };
 
 /**
  * Updates badge with desired number
- *
- * @param {int} n
- *    The number, duh
  */
-ClickyChrome.Functions.setBadgeNum = function(n){
-  var num = new Number(n);
+CM.func.setBadgeNum = function(n){
+  var num = Number(n);
   if (num > 0){
     this.setBadgeText(this.abvNum(num));
   }
@@ -139,12 +126,9 @@ ClickyChrome.Functions.setBadgeNum = function(n){
 };
 
 /**
- * Sets badge text
- *
- * @param {array} c
- *    Array of color values
+ * Sets badge color
  */
-ClickyChrome.Functions.setBadgeColor = function(c){
+CM.func.setBadgeColor = function(c){
   chrome.browserAction.setBadgeBackgroundColor({color: c});
 };
 
@@ -155,7 +139,7 @@ ClickyChrome.Functions.setBadgeColor = function(c){
  *
  * @return object
  */
-ClickyChrome.Functions.getUrlVars = function(){
+CM.func.getUrlVars = function(){
   var vars = [], hash;
   var hashes = window.location.href.slice(window.location.href.indexOf('?')+1).split('&');
   for (var i = 0; i < hashes.length; i++){
@@ -174,7 +158,7 @@ ClickyChrome.Functions.getUrlVars = function(){
  *
  * @return int
  */
-ClickyChrome.Functions.objectSize = function(obj){
+CM.func.objectSize = function(obj){
   var size = 0, key;
   for (key in obj){
     if (obj.hasOwnProperty(key)) size++;
@@ -184,16 +168,9 @@ ClickyChrome.Functions.objectSize = function(obj){
 
 /**
  * Draws browser pie chart using Raphael JS library
- *
- * @param {array} d
- *    Data array
- * @param {array} l
- *    Label array
- * @param {array} u
- *    URL array
  */
-ClickyChrome.Functions.drawPie = function(d, l, u){
-  var r = Raphael("chart");
+CM.func.drawPie = function(d, l, u){
+  var r = new Raphael("chart");
   var colors1 = ["#6293da", "#6e92c9", "#7e91b3", "#908f9a", "#a48e7e", "#b88d62", "#cc8b47", "#de8a2e", "#ee8918",
       "#fa8806"],
     colors2 = ["#6195e1", "#6b9be1", "#78a3e1", "#87ace1", "#97b5e1", "#a7bfe1", "#b7c8e1", "#c6d1e1", "#d3d9e1",
@@ -221,15 +198,8 @@ ClickyChrome.Functions.drawPie = function(d, l, u){
 
 /**
  * Draws charts for visitors and actions using Raphael JS library
- *
- * @param {array} d
- *    Data array
- *  @param {array} l
- *    Label array
- *  @param {array} t
- *    Type of chart, visitors or actions
  */
-ClickyChrome.Functions.drawChart = function(d, l, t){
+CM.func.drawChart = function(d, l, t){
   // Metric name
   var lineInfo = {
       visitors: {
@@ -336,7 +306,7 @@ ClickyChrome.Functions.drawChart = function(d, l, t){
   var Y = (height-bottomGutter-topGutter) / max;
 
   // Initialize this mofo
-  var r = Raphael("chart", width, height);
+  var r = new Raphael("chart", width, height);
   // Put data oldest->newest
   data.reverse();
   labels.reverse();
@@ -399,7 +369,7 @@ ClickyChrome.Functions.drawChart = function(d, l, t){
         var thisDate = months[hoverDate[1]].substring(0, 3)+' '+hoverDay+', '+hoverDate[0];
 
         // Hover styling and positioning
-        label[0].attr({text: ClickyChrome.Functions.addCommas(data)+" "+((data == 1) ? lineInfo[t].metricSingular : lineInfo[t].metricPlural)});
+        label[0].attr({text: CM.func.addCommas(data)+" "+((data == 1) ? lineInfo[t].metricSingular : lineInfo[t].metricPlural)});
         label[1].attr({text: thisDate});
 
         var l0w = label[0].getBBox().width,

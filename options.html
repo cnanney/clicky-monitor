@@ -2,19 +2,30 @@
 <html lang="en">
 
 <head>
-	<title>ClickyChrome Options</title>
+	<title>Clicky Monitor Options</title>
 	<meta charset="utf-8" />
-	<link rel="stylesheet" href="css/_reset.css" />
-	<link rel="stylesheet" href="css/colorbox.css" />
-	<link rel="stylesheet" href="css/options.css" />
-	<script src="javascript/jquery.js"></script>
+	<link rel="stylesheet" href="css/bootstrap.css" />
+  <script src="javascript/vendor/jquery-2.0.3.js"></script>
+  <script src="javascript/vendor/jquery-deparam.js"></script>
+  <script src="javascript/vendor/underscore-1.5.1.js"></script>
+  <script src="javascript/vendor/store-1.3.9.js"></script>
+	<script src="javascript/vendor/jquery.colorbox-1.4.27.js"></script>
+  <script src="javascript/core.js"></script>
 	<script src="javascript/functions.js"></script>
 	<script src="javascript/options.js"></script>
 </head>
 
-<body onload="ClickyChrome.Options.init()">
-	<div id="wrapper">
-		<div id="header"><b>ClickyChrome</b><br />A Chrome Extension for Clicky Web Analytics</div>
+<body>
+	<div class="container">
+		<div class="row">
+			<div class="span12">
+				<div id="options-page">
+					<h1>Clicky Monitor</h1>
+				</div>
+			</div>
+
+		</div>
+		<div id="header"><b>Clicky Monitor</b><br />A Chrome Extension for Clicky Web Analytics</div>
 		<div class="divide"></div>
 		<h1>Use</h1>
 		<p>You must enter the following information below for each site you want to monitor:</p>
@@ -28,7 +39,7 @@
 		<h1>Sites <span><a href="#" class="add_site" title="Add site manually">Add site</a> | <a href="#" id="toggle_import" title="Import sites from Clicky">Import from Clicky</a></span>
 			<span class="right"><a href="#" id="toggle_problems" title="Something broken?">Problems?</a></span></h1>
 		<div id="problems">
-			<p>If you are experiencing problems or have entered incorrect data and would like to start fresh, click below to wipe all local ClickyChrome data.</p>
+			<p>If you are experiencing problems or have entered incorrect data and would like to start fresh, click below to wipe all local Clicky Monitor data.</p>
 			<br /><h2><a href="#" id="wipe" title="Destroy all data, take no prisoners!">WIPE DATA</a></h2>
 		</div>
 		<div id="import">
@@ -85,7 +96,7 @@
 							<input id="c3" type="radio" class="color_input" name="badgeColor" value="0,112,243,200" />
 						</li>
 						<li>
-							<label for="c4"><img src="images/options_icon_Purple.png" alt="Purple Badge" /></label>
+							<label for="c4"><img src="images/options_icon_purple.png" alt="Purple Badge" /></label>
 							<input id="c4" type="radio" class="color_input" name="badgeColor" value="112,0,243,200" />
 						</li>
 					</ul>
@@ -137,7 +148,7 @@
 				<div id="save_feedback"></div>
 				<input value="Save & Reload" type="submit" id="save_button" />
 				<div class="divide"></div>
-				<p><a href="http://cnanney.com/clickychrome" class="external" title="More ClickyChrome information">http://cnanney.com/clickychrome</a></p>
+				<p><a href="http://cnanney.com/clickychrome" class="external" title="More Clicky Monitor information">http://cnanney.com/clickychrome</a></p>
 				<p><a href="http://getclicky.com" class="external" title="Clicky website">http://getclicky.com</a></p>
 			</div>
 		</form>

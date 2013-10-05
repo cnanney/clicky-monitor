@@ -10,78 +10,69 @@
  * http://www.opensource.org/licenses/mit-license.php
  */
 
-var ClickyChrome = ClickyChrome || {};
-
-ClickyChrome.Popup = {};
-
-ClickyChrome.Popup.debug = chrome.extension.getBackgroundPage().ClickyChrome.Background.debug;
+CM.popup = {};
 
 $(function(){
-  // Site select
-  $("#site-list a").live("click", function(){
-    ClickyChrome.Popup.siteSelect($(this))
-  });
-  // Date select
-  $("#date-list a").live("click", function(){
-    ClickyChrome.Popup.dateSelect($(this))
-  });
-  // Chart select
-  $("#chart-list a").live("click", function(){
-    ClickyChrome.Popup.chartSelect($(this))
-  });
+  console.log('popup bindings');
 
-  // Basics tab
-  $("#basics_tab").click(function(){
-    ClickyChrome.Popup.basicsTab($(this))
-  });
-  // Visitors tab
-  $("#visitors_tab").click(function(){
-    ClickyChrome.Popup.visitorsTab($(this))
-  });
-  // Charts tab
-  $("#charts_tab").click(function(){
-    ClickyChrome.Popup.chartsTab($(this))
-  });
+  $('#popup-wrapper')
+    // Site select
+    .on('click', '#site-list a', function(){
+      CM.popup.siteSelect($(this))
+    })
+    // Date select
+    .on('click', '#date-list a', function(){
+      CM.popup.dateSelect($(this))
+    })
+    // Chart select
+    .on('click', '#chart-list a', function(){
+      CM.popup.chartSelect($(this))
+    })
+    // External links
+    .on('click', 'a.external, #chart a', function(){
+      CM.popup.externalLink($(this))
+    })
+    // General click
+    .on('click', function(){
+      CM.popup.hideMenus();
+    });
 
-  // External links
-  $("a.external, #chart a").live("click", function(){
-    ClickyChrome.Popup.externalLink($(this))
+
+  // Tabs
+  $('.nav-tab').on('click', function(){
+    CM.popup.buildTab($(this))
   });
 
   // Open options page
-  $("#show_options").live("click", function(){
-    chrome.extension.getBackgroundPage().ClickyChrome.Background.showOptions()
+  $('#show_options').on('click', function(){
+    chrome.extension.getBackgroundPage().CM.bg.showOptions()
   });
 
   // Reset idle timer
-  chrome.extension.getBackgroundPage().ClickyChrome.Background.resetIdle();
+  chrome.extension.getBackgroundPage().CM.bg.resetIdle();
 
   // Menu interactions
-  $("#site-select").click(function(){
-    $("#site-list").show();
-    $("#date-list").hide();
-    $("#chart-list").hide();
+  $('#site-select').click(function(){
+    $('#site-list').show();
+    $('#date-list').hide();
+    $('#chart-list').hide();
     return false;
   });
 
-  $("#date-select").click(function(){
+  $('#date-select').click(function(){
     if ($(this).hasClass('off') === false){
-      $("#date-list").show();
-      $("#site-list").hide();
+      $('#date-list').show();
+      $('#site-list').hide();
     }
     return false;
   });
 
-  $("#chart-select").click(function(){
+  $('#chart-select').click(function(){
     if ($(this).hasClass('off') === false){
-      $("#chart-list").show();
-      $("#site-list").hide();
+      $('#chart-list').show();
+      $('#site-list').hide();
     }
     return false;
-  });
-
-  $("#wrapper").click(function(){
-    ClickyChrome.Popup.hideMenus();
   });
 
 });
@@ -89,7 +80,7 @@ $(function(){
 /**
  * Variables
  */
-ClickyChrome.Popup.vars = {
+CM.popup.vars = {
   currentPage: 'basics',
   dateNames: {
     "today": "Today",
@@ -110,82 +101,89 @@ ClickyChrome.Popup.vars = {
 /**
  * Start everything up
  */
-ClickyChrome.Popup.init = function(){
-  if (typeof localStorage["clickychrome_names"] == "undefined"){
+CM.popup.init = function(){
+  CM.log('popup init');
+
+  CM.extend({currentDate: 'today'});
+
+  var ls = store.get('cm');
+
+  if (_.isEmpty(CM.get('sites'))){
     this.hideLoader();
     var html = '<p id="no_site">You must <a id="show_options" href="#">add at least one site</a> to use this extension.</p>';
-    $("#main_tabs").hide();
-    $("#content").html(html);
+    $('#main_tabs').hide();
+    $('#content').html(html);
   }
   else{
-    localStorage["clickychrome_currentDate"] = 'today';
 
-    if (localStorage["clickychrome_names"].indexOf(',') == -1){
-      this.vars.nameArray[0] = localStorage["clickychrome_names"];
-      this.vars.idArray[0] = localStorage["clickychrome_ids"];
-      this.vars.keyArray[0] = localStorage["clickychrome_keys"];
+    if (!~ls.names.indexOf(',')){
+      this.vars.nameArray[0] = ls.names;
+      this.vars.idArray[0] = ls.ids;
+      this.vars.keyArray[0] = ls.keys;
     }
     else{
-      this.vars.nameArray = localStorage["clickychrome_names"].split(',');
-      this.vars.idArray = localStorage["clickychrome_ids"].split(',');
-      this.vars.keyArray = localStorage["clickychrome_keys"].split(',');
+      this.vars.nameArray = ls.names.split(',');
+      this.vars.idArray = ls.ids.split(',');
+      this.vars.keyArray = ls.keys.split(',');
     }
 
-    if (typeof localStorage["clickychrome_currentSite"] == "undefined"){
-      localStorage["clickychrome_currentSite"] = this.vars.idArray[0]+','+this.vars.keyArray[0]+','+this.vars.nameArray[0];
+    if (_.isUndefined(ls.currentSite) || ls.currentSite == ''){
+      CM.extend({'currentSite': this.vars.idArray[0]+','+this.vars.keyArray[0]+','+this.vars.nameArray[0]});
     }
     this.buildMenus();
     this.buildPage(this.vars.currentPage);
   }
   // Assign current graph to menu
-  $("#chart-list a").each(function(){
-    if ($(this).attr("id") == localStorage["clickychrome_currentChart"]) $(this).addClass("current");
+  $('#chart-list a').each(function(){
+    if ($(this).attr('id') == ls.currentChart) $(this).addClass('current');
   });
 };
 
 /**
  * Builds site dropdown menu
  */
-ClickyChrome.Popup.buildMenus = function(){
-  this.showMenuButtons();
-  var siteInfo = localStorage["clickychrome_currentSite"].split(',');
-  $("#site-select span").text(siteInfo[2]);
+CM.popup.buildMenus = function(){
+  var siteInfo = CM.get('currentSite').split(',');
+  $('#site-select span').text(siteInfo[2]);
+  CM.log('build menus', siteInfo);
   for (var i = 0, c = this.vars.idArray.length; i < c; i++){
     var string = '<li><a href="#" id="'+this.vars.idArray[i]+','+this.vars.keyArray[i]+','+this.vars.nameArray[i]+'"';
     if (siteInfo[0] == this.vars.idArray[i]){
       string += ' class="current"';
     }
-    string += '">'+this.vars.nameArray[i]+'</a></li>';
-    $("#site-list").append(string);
+    string += '>'+this.vars.nameArray[i]+'</a></li>';
+    $('#site-list').append(string);
   }
+  this.showMenuButtons();
 };
 
 /**
  * Hides loading graphic
  */
-ClickyChrome.Popup.hideLoader = function(){
-  $("#loading").hide();
+CM.popup.hideLoader = function(){
+  $('#loading').hide();
 };
 
 /**
  * Shows loading graphic
  */
-ClickyChrome.Popup.showLoader = function(){
-  $("#loading").show();
+CM.popup.showLoader = function(){
+  $('#loading').show();
 };
 
 /**
  * Hides menu dropdowns
  */
-ClickyChrome.Popup.hideMenus = function(){
-  $("#site-list,#date-list,#chart-list").hide();
+CM.popup.hideMenus = function(){
+  $('#site-list,#date-list,#chart-list').hide();
 };
 
 /**
  * Menu buttons are hidden unless there is an active site
  */
-ClickyChrome.Popup.showMenuButtons = function(){
-  $("#date-select-container,#site-select-container,#chart-select-container").show();
+CM.popup.showMenuButtons = function(){
+  console.log('show menu buttons');
+  $('#date-select-container, #site-select-container, #chart-select-container').show();
 };
 
 /**
@@ -194,9 +192,9 @@ ClickyChrome.Popup.showMenuButtons = function(){
  * @param {string} page
  *    Which page to build
  */
-ClickyChrome.Popup.buildPage = function(page){
-  if (ClickyChrome.Popup.debug) console.log('Begin "'+page+'" page build');
-  ClickyChrome.Build[page]();
+CM.popup.buildPage = function(page){
+  CM.log('Begin "'+page+'" page build');
+  CM.build[page]();
 };
 
 /**
@@ -205,10 +203,10 @@ ClickyChrome.Popup.buildPage = function(page){
  * @param {string} html
  *    HTML to load
  */
-ClickyChrome.Popup.loadHtml = function(html){
+CM.popup.loadHtml = function(html){
   if (html){
-    $("#content").html(html);
-    if (ClickyChrome.Popup.debug) console.log('HTML loaded');
+    $('#content').html(html);
+    CM.log('HTML loaded');
   }
   this.hideLoader();
 };
@@ -219,19 +217,19 @@ ClickyChrome.Popup.loadHtml = function(html){
  * @param {string} link
  *    URL to open
  */
-ClickyChrome.Popup.externalLink = function(link){
-  var windowUrl = link.attr("href");
-  ClickyChrome.Functions.openUrl(windowUrl);
+CM.popup.externalLink = function(link){
+  var windowUrl = link.attr('href');
+  CM.func.openUrl(windowUrl);
 };
 
 /**
  * Sets current date and chart on page load
  */
-ClickyChrome.Popup.setDateName = function(){
-  $("#date-select span").text(this.vars.dateNames[localStorage["clickychrome_currentDate"]]);
+CM.popup.setDateName = function(){
+  $('#date-select span').text(this.vars.dateNames[CM.get('currentDate')]);
 };
-ClickyChrome.Popup.setChartName = function(){
-  $("#chart-select span").text(this.vars.chartNames[localStorage["clickychrome_currentChart"]]);
+CM.popup.setChartName = function(){
+  $('#chart-select span').text(this.vars.chartNames[CM.get('currentChart')]);
 };
 
 
@@ -239,46 +237,46 @@ ClickyChrome.Popup.setChartName = function(){
  * MENU SELECTIONS
  * ---------------------------------------------------------------------------------------------------------------------------*/
 
-ClickyChrome.Popup.siteSelect = function(site){
+CM.popup.siteSelect = function(site){
   this.hideMenus();
 
   var text = site.text(),
-    id = site.attr('id');
-  $("#site-select span").text(text);
-  $("#site-list a").removeClass('current');
+    currentSite = site.attr('id');
+  $('#site-select span').text(text);
+  $('#site-list a').removeClass('current');
   site.addClass('current');
 
-  localStorage["clickychrome_currentSite"] = id;
+  CM.extend({'currentSite': currentSite});
   this.showLoader();
 
   this.buildPage(this.vars.currentPage);
-  //chrome.extension.getBackgroundPage().ClickyChrome.Background.resetGoalStart();
-  chrome.extension.getBackgroundPage().ClickyChrome.Background.updateTitle(id.split(','));
+  //chrome.extension.getBackgroundPage().CM.bg.resetGoalStart();
+  chrome.extension.getBackgroundPage().CM.bg.updateTitle(currentSite.split(','));
 };
 
-ClickyChrome.Popup.dateSelect = function(date){
+CM.popup.dateSelect = function(date){
   this.hideMenus();
 
   var text = date.text();
-  $("#date-select span").text(text);
-  $("#date-list a").removeClass('current');
+  $('#date-select span').text(text);
+  $('#date-list a').removeClass('current');
   date.addClass('current');
 
-  localStorage["clickychrome_currentDate"] = date.attr('id');
+  CM.extend({'currentDate': date.attr('id')});
   this.showLoader();
 
   this.buildPage(this.vars.currentPage);
 };
 
-ClickyChrome.Popup.chartSelect = function(chart){
+CM.popup.chartSelect = function(chart){
   this.hideMenus();
 
   var text = chart.text();
-  $("#chart-select span").text(text);
-  $("#chart-list a").removeClass('current');
+  $('#chart-select span').text(text);
+  $('#chart-list a').removeClass('current');
   chart.addClass('current');
 
-  localStorage["clickychrome_currentChart"] = chart.attr('id');
+  CM.extend({'currentChart': chart.attr('id')});
   this.showLoader();
 
   this.buildPage(this.vars.currentPage);
@@ -288,46 +286,21 @@ ClickyChrome.Popup.chartSelect = function(chart){
  * TABS
  * ---------------------------------------------------------------------------------------------------------------------------*/
 
-ClickyChrome.Popup.basicsTab = function(tab){
+CM.popup.buildTab = function(tab){
   this.hideMenus();
-  this.vars.currentPage = 'basics';
+  this.vars.currentPage = tab.data('id');
 
-  $("#main_tabs a").removeClass('active');
+  $('.nav-tab').removeClass('active');
   tab.addClass('active');
 
   this.setDateName();
-  $("#date-select").removeClass('off');
-  $("#chart-select").addClass('off');
+  $('#date-select').removeClass('off');
+  $('#chart-select').addClass('off');
 
   this.showLoader();
   this.buildPage(this.vars.currentPage);
 };
 
-ClickyChrome.Popup.visitorsTab = function(tab){
-  this.hideMenus();
-  this.vars.currentPage = 'visitors';
-
-  $("#main_tabs a").removeClass('active');
-  tab.addClass('active');
-
-  $("#date-select").addClass('off');
-  $("#chart-select").addClass('off');
-
-  this.showLoader();
-  this.buildPage(this.vars.currentPage);
-}
-
-ClickyChrome.Popup.chartsTab = function(tab){
-  this.hideMenus();
-  this.vars.currentPage = 'charts';
-
-  $("#main_tabs a").removeClass('active');
-  tab.addClass('active');
-
-  this.setChartName();
-  $("#date-select").addClass('off');
-  $("#chart-select").removeClass('off');
-
-  this.showLoader();
-  this.buildPage(this.vars.currentPage);
-};
+$(function(){
+  CM.popup.init();
+});

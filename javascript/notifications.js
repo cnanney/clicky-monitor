@@ -43,7 +43,7 @@ ClickyChrome.Notifications.vars = {
 ClickyChrome.Notifications.buildNotification = function(){
   var goals = $.deparam.querystring(),
     html = '', displayClass,
-    siteInfo = localStorage["clickychrome_currentSite"].split(','),
+    siteInfo = CM.get('currentSite').split(','),
     ipLink, flagUrl, title = '', value = '';
 
   this.vars.count = ClickyChrome.Functions.objectSize(goals)-1;
