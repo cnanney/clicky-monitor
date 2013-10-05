@@ -332,3 +332,8 @@ ClickyChrome.Options.checkVis = function(el){
   if (el.val() == 'no') el.parent("li").next().hide();
   else el.parent("li").next().show();
 };
+
+// Init
+$(function(){
+  ClickyChrome.Options.init();
+});
