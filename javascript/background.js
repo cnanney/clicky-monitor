@@ -558,3 +558,8 @@ ClickyChrome.Background.handleContext = function(info, tab){
     }
   }
 };
+
+// Init
+$(function(){
+  ClickyChrome.Background.init();
+});

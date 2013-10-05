@@ -331,3 +331,8 @@ ClickyChrome.Popup.chartsTab = function(tab){
   this.showLoader();
   this.buildPage(this.vars.currentPage);
 };
+
+// Init
+$(function(){
+  ClickyChrome.Popup.init();
+});
