@@ -10,575 +10,740 @@
  * http://www.opensource.org/licenses/mit-license.php
  */
 
-var ClickyChrome = ClickyChrome || {}
+/**
+ * Service Worker based background script.
+ */
 
+// Import utility scripts (assuming they don't have conflicting globals or DOM reliance)
+try {
+  importScripts('javascript/functions.js', 'javascript/process.js')
+} catch (e) {
+  console.error('Error importing scripts:', e)
+}
+
+const ClickyChrome = ClickyChrome || {}
 ClickyChrome.Background = {}
 
 ClickyChrome.Background.debug = false // log events to console
 
-ClickyChrome.Background.vars = {
-  type: 'live', // test or live
-  listening: 0,
-  regress: 0,
-  level: 0,
-  touched: 0,
-  nCount: 0,
-  offset: 0,
-  spy: null,
-  check: null,
-  expire: null,
-  idleCheck: {
-    test: 490,
-    live: 59900,
-  },
-  spyTimes: {
-    test: {
-      t1: 1000,
-      t2: 1000,
-      t3: 1000,
-      t4: 1000,
-    },
-    live: {
-      t1: 60000,
-      t2: 120000,
-      t3: 300000,
-      t4: 600000,
-    },
-  },
-  checkTimes: {
-    test: {
-      t1: 500,
-      t2: 1000,
-      t3: 1500,
-      t4: 2000,
-    },
-    live: {
-      t1: 600000,
-      t2: 1800000,
-      t3: 3600000,
-      t4: 7200000,
-    },
-  },
-  notifications: {},
-  showNotifications: true,
-  goalTime: 0,
-  goalLog: {},
-  startTime: new Date().getTime(),
-  titleInfo: {
-    online: {
-      titleString: 'Visitors Online: ',
-    },
-    goals: {
-      titleString: 'Goals Completed: ',
-    },
-    visitors: {
-      titleString: 'Visitors Today: ',
-    },
-  },
-  contextMenu: 0,
-}
+// --- Constants ---
+const ALARM_CHECK_API = 'checkApi'
+const ALARM_CLEAN_GOALS = 'cleanGoalLog'
+const DEFAULT_CHECK_INTERVAL_MINUTES = 5 // Check API every 5 minutes
+const GOAL_LOG_CLEAN_INTERVAL_MINUTES = 15 // Clean goal log every 15 minutes
+const GOAL_LOG_EXPIRY_SECONDS = 900 // 15 minutes
+const GOAL_NOTIFICATION_TIMEOUT_MS = 10000 // Default 10 seconds for notification visibility (though not strictly enforced by API)
 
-/**
- * Opens ClickyChrome options page
- */
-ClickyChrome.Background.showOptions = function () {
-  var windowUrl = chrome.extension.getURL('options.html')
-  chrome.tabs.create({ url: windowUrl, selected: true })
-}
+// --- State (managed via chrome.storage.local) ---
+// We retrieve state as needed instead of keeping it in memory
 
-/**
- * Initialize everything
- */
-ClickyChrome.Background.init = function () {
-  if (this.debug && this.vars.listening == 0) console.log('###### START ######')
+// --- Initialization and Event Listeners ---
 
-  // Set some defaults
-  if (typeof localStorage['clickychrome_badgeColor'] == 'undefined')
-    localStorage['clickychrome_badgeColor'] = '0,0,0,200'
-  if (typeof localStorage['clickychrome_currentChart'] == 'undefined')
-    localStorage['clickychrome_currentChart'] = 'visitors'
-  if (typeof localStorage['clickychrome_customName'] == 'undefined')
-    localStorage['clickychrome_customName'] = 'yes'
-  if (typeof localStorage['clickychrome_spyType'] == 'undefined')
-    localStorage['clickychrome_spyType'] = 'online'
-  if (typeof localStorage['clickychrome_goalNotification'] == 'undefined')
-    localStorage['clickychrome_goalNotification'] = 'no'
-  if (typeof localStorage['clickychrome_goalTimeout'] == 'undefined')
-    localStorage['clickychrome_goalTimeout'] = '10'
-  if (
-    typeof localStorage['clickychrome_urls'] == 'undefined' &&
-    typeof localStorage['clickychrome_ids'] != 'undefined'
-  ) {
-    var names = localStorage['clickychrome_names'].split(','),
-      blankUrls = []
-    for (var j = 0, cn = names.length; j < cn; j++) {
-      blankUrls[j] = ''
-    }
-    localStorage['clickychrome_urls'] = blankUrls.join(',')
+chrome.runtime.onInstalled.addListener(async (details) => {
+  console.log('Clicky Monitor: onInstalled event.')
+  await initializeDefaults()
+  await setupContextMenu()
+  await setupAlarms()
+  await checkSpy() // Initial check on install/update
+})
+
+chrome.runtime.onStartup.addListener(async () => {
+  console.log('Clicky Monitor: onStartup event.')
+  // Alarms should persist, but we can ensure they are set up correctly
+  await setupAlarms()
+  // Optional: Run an initial check on browser startup
+  // await checkSpy();
+})
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  console.log('Clicky Monitor: Alarm fired:', alarm.name)
+  if (alarm.name === ALARM_CHECK_API) {
+    checkSpy()
+  } else if (alarm.name === ALARM_CLEAN_GOALS) {
+    cleanGoalLog()
   }
+})
 
-  var colors = localStorage['clickychrome_badgeColor'].split(',')
-  chrome.browserAction.setBadgeBackgroundColor({
-    color: [Number(colors[0]), Number(colors[1]), Number(colors[2]), Number(colors[3])],
-  })
+// Listen for changes in storage (e.g., options saved)
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === 'local') {
+    console.log('Clicky Monitor: Storage changed:', changes)
+    let needsApiCheck = false
+    let needsContextMenuUpdate = false
 
-  // If no current site, show options page
-  if (typeof localStorage['clickychrome_currentSite'] == 'undefined') {
-    ClickyChrome.Functions.setTitle('ClickyChrome')
-    if (this.vars.spy) {
-      clearInterval(this.vars.spy)
-      this.vars.spy = null
+    if (
+      changes.clickychrome_currentSite ||
+      changes.clickychrome_spyType ||
+      changes.clickychrome_goalNotification
+    ) {
+      needsApiCheck = true
     }
-    this.showOptions()
-  }
-  // Otherwise, start it up
-  else {
-    this.vars.regress = 0
-    this.resetIdle()
-    this.setRefresh(this.vars.spyTimes[this.vars.type].t1)
-    // Listen for browser idle
-    if (this.vars.listening == 0) {
-      this.beginListen()
-      this.vars.check = setInterval(this.checkIdle, this.vars.idleCheck[this.vars.type])
+    if (changes.clickychrome_urls || changes.clickychrome_ids) {
+      needsContextMenuUpdate = true
+    }
+    if (changes.clickychrome_badgeColor) {
+      updateBadgeColor()
+    }
+
+    if (needsApiCheck) {
+      console.log('Storage change triggers API check.')
+      checkSpy() // Re-check API immediately on relevant option changes
+    }
+    if (needsContextMenuUpdate) {
+      console.log('Storage change triggers context menu update.')
+      setupContextMenu() // Re-create/update context menu
     }
   }
+})
 
-  // Context menu
-  if (typeof localStorage['clickychrome_urls'] != 'undefined') {
-    var urls = localStorage['clickychrome_urls'].split(','),
-      patterns = [],
-      clean
-    for (var i = 0, c = urls.length; i < c; i++) {
-      if (urls[i] != '') {
-        clean = urls[i].replace(/^((?:[a-z][a-z0-9+\-.]*:)?(?:\/\/)?(?:www\.)?)/gi, '')
-        patterns.push('*://' + clean + '/*')
-        patterns.push('*://www.' + clean + '/*')
+// Listen for messages from popup/options
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'showOptions') {
+    ClickyChrome.Background.showOptions()
+    sendResponse({ status: 'Options tab opened/focused' })
+  } else if (message.action === 'triggerApiCheck') {
+    // Used by popup init/refresh potentially
+    console.log('Received triggerApiCheck message')
+    checkSpy()
+    sendResponse({ status: 'API check triggered' })
+  } else if (message.action === 'createSampleNotification') {
+    createSampleNotification()
+    sendResponse({ status: 'Sample notification triggered' })
+  } else if (message.action === 'getDebugState') {
+    sendResponse({ debug: ClickyChrome.Background.debug })
+  } else if (message.action === 'log') {
+    // Allow other scripts to log via the background console
+    console.log('LOG from', sender.url, ':', message.data)
+    sendResponse({ status: 'Logged' })
+  }
+  // Keep the message channel open for asynchronous responses if needed
+  // return true;
+})
+
+// --- Core Functions ---
+
+async function initializeDefaults() {
+  console.log('Initializing default settings...')
+  const defaults = {
+    clickychrome_badgeColor: '0,0,0,200',
+    clickychrome_currentChart: 'visitors',
+    clickychrome_customName: 'yes', // This seems related to visitor display, keep for now
+    clickychrome_spyType: 'online',
+    clickychrome_goalNotification: 'no',
+    clickychrome_goalTimeout: '10', // Stored as string, used as number
+    clickychrome_goalLog: {},
+    clickychrome_startTime: new Date().getTime(), // Used for goal time offset calculation
+  }
+
+  try {
+    const currentSettings = await chrome.storage.local.get(Object.keys(defaults))
+    const settingsToSet = {}
+    for (const key in defaults) {
+      if (currentSettings[key] === undefined) {
+        settingsToSet[key] = defaults[key]
+        console.log(`Setting default for ${key}`)
       }
     }
-    if (this.vars.contextMenu != 0) {
-      if (patterns.length == 0) {
-        chrome.contextMenus.remove(this.vars.contextMenu, function () {
-          if (ClickyChrome.Background.debug) console.log('Context menu destroyed')
-          ClickyChrome.Background.vars.contextMenu = 0
-        })
-      } else {
-        chrome.contextMenus.update(
-          this.vars.contextMenu,
-          { documentUrlPatterns: patterns },
-          function () {
-            if (ClickyChrome.Background.debug)
-              console.log('Context menu updated with patterns: ' + patterns.join(', '))
-          }
-        )
-      }
+
+    // Handle the old migration from ids/names to urls if necessary
+    if (
+      currentSettings.clickychrome_urls === undefined &&
+      currentSettings.clickychrome_ids !== undefined
+    ) {
+      const names = (currentSettings.clickychrome_names || '').split(',')
+      const blankUrls = Array(names.length).fill('')
+      settingsToSet['clickychrome_urls'] = blankUrls.join(',')
+      console.log('Migrating old settings: creating blank URLs array.')
+    }
+
+    if (Object.keys(settingsToSet).length > 0) {
+      await chrome.storage.local.set(settingsToSet)
+      console.log('Defaults set:', settingsToSet)
+    }
+
+    await updateBadgeColor() // Set initial badge color
+  } catch (error) {
+    console.error('Error initializing defaults:', error)
+  }
+}
+
+async function setupAlarms() {
+  console.log('Setting up alarms...')
+  try {
+    // Clear existing alarms to avoid duplicates if setup is called multiple times
+    // await chrome.alarms.clear(ALARM_CHECK_API);
+    // await chrome.alarms.clear(ALARM_CLEAN_GOALS);
+
+    // Main API check alarm
+    await chrome.alarms.create(ALARM_CHECK_API, {
+      delayInMinutes: 0.1, // Fire quickly the first time
+      periodInMinutes: DEFAULT_CHECK_INTERVAL_MINUTES,
+    })
+    console.log(
+      `Alarm '${ALARM_CHECK_API}' created/updated. Interval: ${DEFAULT_CHECK_INTERVAL_MINUTES} minutes.`
+    )
+
+    // Goal log cleaning alarm
+    await chrome.alarms.create(ALARM_CLEAN_GOALS, {
+      delayInMinutes: 1, // Start cleaning after 1 minute
+      periodInMinutes: GOAL_LOG_CLEAN_INTERVAL_MINUTES,
+    })
+    console.log(
+      `Alarm '${ALARM_CLEAN_GOALS}' created/updated. Interval: ${GOAL_LOG_CLEAN_INTERVAL_MINUTES} minutes.`
+    )
+  } catch (error) {
+    console.error('Error setting up alarms:', error)
+  }
+}
+
+async function updateBadgeColor() {
+  try {
+    const data = await chrome.storage.local.get('clickychrome_badgeColor')
+    const colorString = data.clickychrome_badgeColor || '0,0,0,200'
+    const colors = colorString.split(',').map(Number)
+    if (colors.length === 4) {
+      await chrome.action.setBadgeBackgroundColor({
+        color: [colors[0], colors[1], colors[2], colors[3]],
+      })
+      if (ClickyChrome.Background.debug) console.log('Badge color updated:', colors)
     } else {
-      if (patterns.length != 0) {
-        this.vars.contextMenu = chrome.contextMenus.create(
-          {
-            title: 'View page stats',
-            documentUrlPatterns: patterns,
-            contexts: ['all'],
-            onclick: this.handleContext,
-          },
-          function () {
-            if (ClickyChrome.Background.debug)
-              console.log('Context menu created with patterns: ' + patterns.join(', '))
-          }
-        )
-      }
+      console.error('Invalid badge color format in storage:', colorString)
+    }
+  } catch (error) {
+    console.error('Error setting badge color:', error)
+  }
+}
+
+/**
+ * Opens ClickyChrome options page, focuses if already open.
+ */
+ClickyChrome.Background.showOptions = async () => {
+  const optionsUrl = chrome.runtime.getURL('options.html')
+  try {
+    const tabs = await chrome.tabs.query({ url: optionsUrl })
+    if (tabs.length > 0) {
+      // Focus the first found options tab
+      await chrome.tabs.update(tabs[0].id, { active: true })
+      await chrome.windows.update(tabs[0].windowId, { focused: true })
+      console.log('Focused existing options tab:', tabs[0].id)
+    } else {
+      // Create a new options tab
+      const newTab = await chrome.tabs.create({ url: optionsUrl, selected: true })
+      console.log('Created new options tab:', newTab.id)
+    }
+  } catch (error) {
+    console.error('Error showing options page:', error)
+    // Fallback if query fails
+    try {
+      await chrome.tabs.create({ url: optionsUrl, selected: true })
+    } catch (createError) {
+      console.error('Error creating options tab as fallback:', createError)
     }
   }
 }
 
 /**
- * Query API for updated counts and completed goals
+ * Fetch data from Clicky API
  */
-ClickyChrome.Background.checkSpy = function () {
-  if (ClickyChrome.Background.debug) console.log('Spy')
+async function checkSpy() {
+  if (ClickyChrome.Background.debug) console.log('Spy: Fetching API data...')
 
-  ClickyChrome.Background.updateGoalTime()
+  try {
+    const settings = await chrome.storage.local.get([
+      'clickychrome_currentSite',
+      'clickychrome_spyType',
+      'clickychrome_goalNotification',
+      'clickychrome_startTime', // Get startTime for goal offset
+    ])
 
-  var type = ClickyChrome.Background.vars.type,
-    offset = ClickyChrome.Background.vars.goalTime
+    if (!settings.clickychrome_currentSite) {
+      console.log('Spy: No current site selected. Setting title.')
+      ClickyChrome.Functions.setTitle('ClickyChrome - No Site Selected')
+      ClickyChrome.Functions.setBadgeText('') // Clear badge if no site
+      // Optionally open options page if truly unconfigured
+      // const allSettings = await chrome.storage.local.get(['clickychrome_ids']);
+      // if (!allSettings.clickychrome_ids) {
+      //     ClickyChrome.Background.showOptions();
+      // }
+      return
+    }
 
-  // Spy type variables
-  var spyTypeInfo = {
-    online: {
-      urlString:
-        localStorage['clickychrome_goalNotification'] == 'yes'
-          ? '&type=visitors-online,visitors-list&goal=*&time_offset=' + offset
-          : '&type=visitors-online',
-    },
-    goals: {
-      urlString:
-        localStorage['clickychrome_goalNotification'] == 'yes'
-          ? '&type=goals,visitors-list&goal=*&time_offset=' + offset
-          : '&type=goals',
-    },
-    visitors: {
-      urlString:
-        localStorage['clickychrome_goalNotification'] == 'yes'
-          ? '&type=visitors,visitors-list&goal=*&time_offset=' + offset
-          : '&type=visitors',
-    },
-  }
+    const siteInfo = settings.clickychrome_currentSite.split(',') // [id, key, name]
+    const spyType = settings.clickychrome_spyType || 'online'
+    const goalNotificationsEnabled = settings.clickychrome_goalNotification === 'yes'
+    const startTime = settings.clickychrome_startTime || new Date().getTime()
 
-  // Make sure a current site is selected before we proceed
-  if (typeof localStorage['clickychrome_currentSite'] != 'undefined') {
-    var siteInfo = localStorage['clickychrome_currentSite'].split(',')
+    // Calculate goal time offset (similar logic to original)
+    const now = new Date().getTime()
+    const elapsedSeconds = Math.floor((now - startTime) / 1000)
+    let goalTimeOffset = 600 // Max offset 10 minutes
+    if (elapsedSeconds < 600) {
+      goalTimeOffset = elapsedSeconds + 30 // Add 30s buffer like original
+    }
+    if (ClickyChrome.Background.debug) console.log('Goal time offset calculated:', goalTimeOffset)
 
-    ClickyChrome.Background.updateTitle(siteInfo)
+    // Base API URL structure
+    let apiUrl = `https://api.getclicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&date=today&output=json&app=clickychrome`
 
-    var apiString =
-      'http://api.getclicky.com/api/stats/4?site_id=' +
-      siteInfo[0] +
-      '&sitekey=' +
-      siteInfo[1] +
-      spyTypeInfo[localStorage['clickychrome_spyType']].urlString +
-      '&date=today&output=json&app=clickychrome'
+    // Determine API types based on spyType and goal notification settings
+    let types = []
+    switch (spyType) {
+      case 'online':
+        types.push('visitors-online')
+        break
+      case 'goals':
+        types.push('goals')
+        break
+      case 'visitors':
+        types.push('visitors')
+        break
+      default:
+        types.push('visitors-online') // Fallback
+    }
 
-    if (type == 'live') {
-      $.ajax({
-        url: apiString,
-        cache: false,
-        contentType: 'application/json; charset=utf-8',
-        dataType: 'json',
-        success: function (data) {
-          if (data && data[0]) {
-            if (data[0].error) {
-              ClickyChrome.Functions.setTitle(data[0].error)
-              console.log(data[0].error)
-              ClickyChrome.Functions.setBadgeText('ERR')
-            } else {
-              ClickyChrome.Functions.setBadgeNum(data[0].dates[0].items[0].value)
-              if (localStorage['clickychrome_goalNotification'] == 'yes') {
-                if (data[1].dates[0].items[0]) {
-                  if (ClickyChrome.Background.debug) console.log('Goals completed')
-                  ClickyChrome.Background.createNotification(data[1].dates[0].items)
-                }
-              }
+    if (goalNotificationsEnabled) {
+      // If goal notifications are on, always fetch visitors-list and goals with offset
+      if (!types.includes('goals')) {
+        // Avoid duplicate if spyType is 'goals'
+        types.push('goals')
+      }
+      types.push('visitors-list')
+      apiUrl += `&goal=*&time_offset=${goalTimeOffset}`
+    }
+
+    apiUrl += `&type=${types.join(',')}`
+
+    // Update browser action title
+    updateTitle(siteInfo, spyType)
+
+    if (ClickyChrome.Background.debug) console.log('API URL:', apiUrl)
+
+    const response = await fetch(apiUrl, { cache: 'no-store' }) // Prevent caching
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    if (ClickyChrome.Background.debug) console.log('API Response Data:', JSON.stringify(data))
+
+    if (data && Array.isArray(data) && data.length > 0 && data[0]) {
+      // Check for API error reported within the JSON
+      if (data[0].error) {
+        console.error('Clicky API Error:', data[0].error)
+        ClickyChrome.Functions.setTitle(`Error: ${data[0].error}`)
+        ClickyChrome.Functions.setBadgeText('ERR')
+      } else {
+        // Process main spy type for badge
+        // Find the data corresponding to the spyType
+        let badgeData = null
+        let goalData = null
+        for (const item of data) {
+          if (item.type === spyType) {
+            badgeData = item
+          }
+          // Find goal data if notifications are enabled (it might be the second item)
+          if (
+            goalNotificationsEnabled &&
+            (item.type === 'goals' || item.type === 'visitors-list')
+          ) {
+            // Need to refine this - how to reliably get goal completion data?
+            // Assuming visitors-list contains goal info if goal=* is used
+            if (item.type === 'visitors-list' && item.dates?.[0]?.items) {
+              goalData = item.dates[0].items
+            } else if (item.type === 'goals' && item.dates?.[0]?.items && !goalData) {
+              // Fallback? Less ideal as it might not have visitor details
+              // goalData = item.dates[0].items;
             }
           }
-        },
-        error: function (XMLHttpRequest, textStatus, errorThrown) {
-          console.log('Status: ' + textStatus + ', Error: ' + errorThrown)
-          console.log(XMLHttpRequest.responseText)
-          ClickyChrome.Functions.setBadgeText('ERR')
-        },
+        }
+
+        if (badgeData && badgeData.dates?.[0]?.items?.[0]?.value) {
+          ClickyChrome.Functions.setBadgeNum(badgeData.dates[0].items[0].value)
+          if (ClickyChrome.Background.debug)
+            console.log(`Badge updated for ${spyType}:`, badgeData.dates[0].items[0].value)
+        } else {
+          // Handle cases where specific data might be missing (e.g., 0 goals)
+          if (spyType === 'goals') {
+            ClickyChrome.Functions.setBadgeNum(0) // Show 0 if no goal data found for badge
+          } else if (
+            spyType === 'online' &&
+            badgeData?.dates?.[0]?.items?.[0]?.value !== undefined
+          ) {
+            ClickyChrome.Functions.setBadgeNum(badgeData.dates[0].items[0].value) // Handle 0 online
+          } else {
+            console.warn(`Could not find value for badge type '${spyType}' in API response.`)
+            // Don't set badge text to avoid confusion, or set to '?'
+            ClickyChrome.Functions.setBadgeText('?')
+          }
+        }
+
+        // Process goal notifications if enabled and data is present
+        if (goalNotificationsEnabled && goalData && goalData.length > 0) {
+          if (ClickyChrome.Background.debug)
+            console.log('Goal data found for potential notification:', goalData)
+          await processAndCreateNotifications(goalData)
+        } else if (goalNotificationsEnabled) {
+          if (ClickyChrome.Background.debug)
+            console.log('Goal notifications enabled, but no new goal data found.')
+        }
+      }
+    } else {
+      console.warn('Received empty or invalid data from Clicky API.')
+      ClickyChrome.Functions.setBadgeText('?')
+    }
+  } catch (error) {
+    console.error('Error in checkSpy:', error)
+    ClickyChrome.Functions.setTitle('Clicky Monitor - API Error')
+    ClickyChrome.Functions.setBadgeText('ERR')
+  }
+}
+
+/**
+ * Updates extension title based on current settings.
+ */
+async function updateTitle(siteInfo, spyType) {
+  const titleInfo = {
+    online: { titleString: 'Visitors Online: ' },
+    goals: { titleString: 'Goals Completed: ' },
+    visitors: { titleString: 'Visitors Today: ' },
+  }
+  const siteName = siteInfo[2] || 'Unknown Site'
+  const titlePrefix = titleInfo[spyType]?.titleString || 'Stats: '
+  ClickyChrome.Functions.setTitle(titlePrefix + siteName)
+}
+
+/**
+ * Processes goal data and creates notifications if new goals are found.
+ */
+async function processAndCreateNotifications(apiGoalItems) {
+  if (ClickyChrome.Background.debug) console.log('Processing goal data for notifications...')
+
+  try {
+    const {
+      clickychrome_goalLog: currentLog = {},
+      clickychrome_goalTimeout: timeoutString = '10',
+    } = await chrome.storage.local.get(['clickychrome_goalLog', 'clickychrome_goalTimeout'])
+
+    const processedData = ClickyChrome.Process.goals(apiGoalItems, currentLog) // Pass current log
+
+    if (processedData.newGoals && Object.keys(processedData.newGoals).length > 0) {
+      const newGoals = processedData.newGoals
+      const updatedLog = processedData.updatedLog
+
+      if (ClickyChrome.Background.debug) {
+        console.log('New goals found for notification:', newGoals)
+        console.log('Updated goal log:', updatedLog)
+      }
+
+      // Store the updated log immediately
+      await chrome.storage.local.set({ clickychrome_goalLog: updatedLog })
+
+      // --- Create Simplified Notification ---
+      const goalKeys = Object.keys(newGoals)
+      const firstGoal = newGoals[goalKeys[0]] // Use the first new goal for simplicity
+      let notificationTitle = 'Goal Completed!'
+      let notificationMessage = `${firstGoal.goals} by ${firstGoal.visitor}`
+      let notificationItems = [] // For list format
+
+      if (goalKeys.length > 1) {
+        notificationTitle = `${goalKeys.length} Goals Completed!`
+        // Create list items for notification
+        notificationItems = goalKeys
+          .map((key) => {
+            const goal = newGoals[key]
+            return { title: goal.goals, message: `by ${goal.visitor} (${goal.geo})` }
+          })
+          .slice(0, 5) // Max 5 items in list notification
+        notificationMessage = `${notificationItems.length} new goals. See list.` // Fallback message
+      }
+
+      const iconUrl = chrome.runtime.getURL('images/clicky_icon_48.png')
+      const notificationId = `clickyGoal_${Date.now()}` // Unique ID
+
+      const notificationOptions = {
+        type: goalKeys.length > 1 ? 'list' : 'basic',
+        iconUrl: iconUrl,
+        title: notificationTitle,
+        message: notificationMessage,
+        priority: 1, // 0 to 2
+        requireInteraction: false, // Auto-close after system default or timeout
+        // eventTime: Date.now() // Optional timestamp
+      }
+
+      if (goalKeys.length > 1 && notificationItems.length > 0) {
+        notificationOptions.items = notificationItems
+      }
+
+      // Add button to view stats (optional)
+      // notificationOptions.buttons = [{ title: 'View Visitor Stats', iconUrl: chrome.runtime.getURL('images/icon_stats.png') }]; // Example button
+
+      chrome.notifications.create(notificationId, notificationOptions, (createdId) => {
+        if (chrome.runtime.lastError) {
+          console.error('Error creating notification:', chrome.runtime.lastError)
+        } else {
+          if (ClickyChrome.Background.debug) console.log('Notification created:', createdId)
+
+          // --- Handle Notification Click (Optional) ---
+          // Need a persistent listener for clicks
+          // Store the goal URL associated with the notification ID if needed
+          chrome.storage.local.set({ [`notification_url_${createdId}`]: firstGoal.url })
+        }
       })
-    }
-    if (type == 'test') {
-      ClickyChrome.Functions.setBadgeText('ABC')
-    }
-  } else {
-    ClickyChrome.Functions.setTitle('ClickyChrome')
-  }
 
-  if (ClickyChrome.Background.debug) {
-    console.log('Goal log...')
-    console.log(ClickyChrome.Background.vars.goalLog)
-  }
-}
-
-/**
- * Attach event listeners to detect browser idle time
- */
-ClickyChrome.Background.beginListen = function () {
-  this.vars.listening = 1
-  chrome.tabs.onSelectionChanged.addListener(function () {
-    ClickyChrome.Background.resetIdle()
-  })
-  chrome.tabs.onUpdated.addListener(function () {
-    ClickyChrome.Background.resetIdle()
-  })
-}
-
-/**
- * Resets the idle timer
- */
-ClickyChrome.Background.resetIdle = function () {
-  this.vars.touched = new Date().getTime()
-  if (this.vars.regress == 1) {
-    this.vars.level = 0
-    this.vars.regress = 0
-    this.setRefresh(this.vars.spyTimes[this.vars.type].t1)
-    if (this.debug) console.log('Idle reset, regress level 1')
-  }
-}
-
-/**
- * Sets a new check interval with desired time delay
- *
- * @param {int} delay
- *    Time delay between checks in milliseconds
- */
-ClickyChrome.Background.setRefresh = function (delay) {
-  this.checkSpy()
-  if (this.vars.spy) {
-    clearInterval(this.vars.spy)
-    this.vars.spy = null
-  }
-  this.vars.spy = setInterval(this.checkSpy, delay)
-  this.toggleLevel()
-}
-
-/**
- * Toggles 'level' between 0 and 1 to facilitate steping between delay levels
- */
-ClickyChrome.Background.toggleLevel = function () {
-  this.vars.level = this.vars.level == 0 ? 1 : 0
-}
-
-/**
- * Stops all extension refreshing after broswer has been idle for 2 hours
- */
-ClickyChrome.Background.stopRefresh = function () {
-  if (this.vars.spy) {
-    clearInterval(this.vars.spy)
-    this.vars.spy = null
-  }
-  if (this.vars.check) {
-    clearInterval(this.vars.check)
-    this.vars.check = null
-    this.vars.listening = 0
-  }
-  this.vars.level = 1
-  ClickyChrome.Functions.setBadgeText('IDLE')
-}
-
-/**
- * Checks browser idle time and adjusts check frequency accordingly
- */
-ClickyChrome.Background.checkIdle = function () {
-  var local = ClickyChrome.Background.vars,
-    now = new Date().getTime(),
-    diff = now - local.touched
-
-  if (diff > local.checkTimes[local.type].t1) ClickyChrome.Background.vars.regress = 1
-  if (diff > local.checkTimes[local.type].t1 && diff < local.checkTimes[local.type].t2) {
-    if (local.level == 1) {
-      ClickyChrome.Background.setRefresh(local.spyTimes[local.type].t2)
-      // Change color for testing
-      if (local.type == 'test') ClickyChrome.Functions.setBadgeColor([255, 0, 0, 200])
-      if (ClickyChrome.Background.debug) console.log('Regress level 2')
-    }
-  } else if (diff > local.checkTimes[local.type].t2 && diff < local.checkTimes[local.type].t3) {
-    if (local.level == 0) {
-      ClickyChrome.Background.setRefresh(local.spyTimes[local.type].t3)
-      // Change color for testing
-      if (local.type == 'test') ClickyChrome.Functions.setBadgeColor([0, 255, 0, 200])
-      if (ClickyChrome.Background.debug) console.log('Regress level 3')
-    }
-  } else if (diff > local.checkTimes[local.type].t3 && diff < local.checkTimes[local.type].t4) {
-    if (local.level == 1) {
-      ClickyChrome.Background.setRefresh(local.spyTimes[local.type].t4)
-      // Change color for testing
-      if (local.type == 'test') ClickyChrome.Functions.setBadgeColor([0, 0, 255, 200])
-      if (ClickyChrome.Background.debug) console.log('Regress level 4')
-    }
-  } else if (diff > local.checkTimes[local.type].t4) {
-    if (local.level == 0) {
-      ClickyChrome.Background.stopRefresh()
-      // Change color for testing
-      if (local.type == 'test') ClickyChrome.Functions.setBadgeColor([0, 0, 0, 200])
-      if (ClickyChrome.Background.debug) console.log('Regress level 5')
-    }
-  }
-}
-
-/**
- * Creates new HTML5 desktop notification for goal completion
- *
- * @param {array} data
- *    Goal data from API response
- */
-ClickyChrome.Background.createNotification = function (data) {
-  if (this.vars.showNotifications === false) return true
-
-  var nData = ClickyChrome.Process.goals(data)
-
-  if (nData !== false) {
-    if (this.debug) {
-      console.log('Notification data...')
-      console.log(nData)
-    }
-
-    this.vars.nCount += 1
-    var newNotification = webkitNotifications.createHTMLNotification(
-      'notifications.html?id=' + this.vars.nCount + '&' + $.param(nData)
-    )
-    newNotification.id = this.vars.nCount
-    newNotification.onclose = function () {
-      delete ClickyChrome.Background.vars.notifications[this.id]
-      if (ClickyChrome.Background.debug) console.log('Notification ' + this.id + ' closed')
-    }
-    this.vars.notifications[this.vars.nCount] = newNotification
-    newNotification.show()
-
-    this.expireNotification(this.vars.nCount)
-    if (this.debug) console.log('Notification ' + this.vars.nCount + ' created')
-  }
-}
-
-/**
- * Creates sample HTML5 desktop notification
- */
-ClickyChrome.Background.createSampleNotification = function () {
-  var newNotification = webkitNotifications.createHTMLNotification('/help/sample_notification.html')
-  newNotification.show()
-}
-
-/**
- * Cancels notificatin expiration
- *
- * @param {int} id
- *    ID of notification to save
- */
-ClickyChrome.Background.stayNotification = function (id) {
-  if (this.vars.expire && id == this.vars.nCount) {
-    if (this.vars.expire) {
-      clearTimeout(this.vars.expire)
-      this.vars.expire = null
-      if (this.debug) console.log('Notification ' + id + ' saved')
-    }
-  }
-}
-
-/**
- * Sets the notification to expire
- *
- * @param {int} id
- *    ID of notification to expire
- */
-ClickyChrome.Background.expireNotification = function (id) {
-  if (this.vars.expire) {
-    clearTimeout(this.vars.expire)
-    this.vars.expire = null
-  }
-  var timeout = Number(localStorage['clickychrome_goalTimeout']) * 1000
-  this.vars.expire = setTimeout(this.killNotification, timeout, id)
-}
-
-/**
- * Kills the notification
- *
- * @param {int} id
- *    ID of notification to kill
- */
-ClickyChrome.Background.killNotification = function (id) {
-  if (typeof ClickyChrome.Background.vars.notifications[id] == 'object') {
-    ClickyChrome.Background.vars.notifications[id].cancel()
-    if (ClickyChrome.Background.debug) console.log('Notification ' + id + ' expired')
-  } else {
-    if (ClickyChrome.Background.debug) console.log('Notification ' + id + ' unable to close')
-  }
-  if (ClickyChrome.Background.vars.expire) {
-    clearTimeout(ClickyChrome.Background.vars.expire)
-    ClickyChrome.Background.vars.expire = null
-  }
-}
-
-/**
- * Log function for notifications to use, because they aren't allowed to use console.log
- *
- * @param {mixed} what
- *    What to log, duh
- */
-ClickyChrome.Background.log = function (what) {
-  console.log(what)
-}
-
-/**
- * Set time of last completed goal
- */
-ClickyChrome.Background.updateGoalTime = function () {
-  var t = new Date().getTime()
-  if (t - this.vars.startTime > 600000) {
-    this.vars.goalTime = 600
-  } else {
-    this.vars.goalTime = Math.floor((t - this.vars.startTime) / 1000) + 30
-  }
-  if (this.debug) console.log('New offset: ' + this.vars.goalTime)
-}
-
-/**
- * Update goal log, cleans out old ones
- *
- * @param {object} log
- *    Log of all notified goals
- */
-ClickyChrome.Background.updateGoalLog = function (log) {
-  this.vars.goalLog = log
-  if (this.debug) console.log('Goal log updated')
-  this.cleanGoalLog()
-}
-
-/**
- * Reset goal start time
- */
-ClickyChrome.Background.resetGoalStart = function () {
-  this.vars.startTime = new Date().getTime()
-  if (this.debug) console.log('Start time reset')
-}
-
-/**
- * Garbage collection for goal log
- */
-ClickyChrome.Background.cleanGoalLog = function () {
-  var t = new Date().getTime(),
-    check = Math.floor(t / 1000)
-  for (var id in this.vars.goalLog) {
-    if (this.vars.goalLog.hasOwnProperty(id)) {
-      if (check - Number(this.vars.goalLog[id].timestamp) > 900) {
-        delete this.vars.goalLog[id]
-        if (this.debug) console.log('#' + id + ' deleted from log')
+      // // Auto-clear notification (alternative to requireInteraction: false)
+      // const timeoutSeconds = parseInt(timeoutString, 10) || 10;
+      // setTimeout(() => {
+      //     chrome.notifications.clear(notificationId, (wasCleared) => {
+      //         if (ClickyChrome.Background.debug) console.log(`Notification ${notificationId} cleared after timeout: ${wasCleared}`);
+      //         chrome.storage.local.remove(`notification_url_${notificationId}`); // Clean up stored URL
+      //     });
+      // }, timeoutSeconds * 1000);
+    } else {
+      if (ClickyChrome.Background.debug) console.log('No new, unique goals found to notify.')
+      // If the log was potentially modified (e.g., goal name changed), save it
+      if (
+        processedData.updatedLog &&
+        JSON.stringify(processedData.updatedLog) !== JSON.stringify(currentLog)
+      ) {
+        await chrome.storage.local.set({ clickychrome_goalLog: processedData.updatedLog })
+        if (ClickyChrome.Background.debug)
+          console.log('Goal log updated even without new notifications.')
       }
     }
+  } catch (error) {
+    console.error('Error processing or creating notifications:', error)
   }
-  if (this.debug) console.log('Goal log cleaned')
 }
 
-/**
- * Updates extension title
- *
- * @param {array} siteInfo
- *    Array of site id, key and name
- */
-ClickyChrome.Background.updateTitle = function (siteInfo) {
-  ClickyChrome.Functions.setTitle(
-    this.vars.titleInfo[localStorage['clickychrome_spyType']].titleString + siteInfo[2]
-  )
-}
-
-/**
- * Opens stats page from context menu
- *
- * @param {object} info
- *    Info about the page the menu was clicked on
- * @param {object} tab
- *    Chrome tab object for page
- */
-ClickyChrome.Background.handleContext = function (info, tab) {
-  var urlArray = localStorage['clickychrome_urls'].split(','),
-    idArray = localStorage['clickychrome_ids'].split(',')
-
-  for (var i = 0, c = urlArray.length; i < c; i++) {
-    var re = new RegExp(urlArray[i], 'ig')
-    if (re.test(info.pageUrl)) {
-      if (ClickyChrome.Background.debug)
-        console.log('Context matched ' + urlArray[i] + ', ID: ' + idArray[i])
-      var urlParts = info.pageUrl.split('/'),
-        contentUrl = 'http://getclicky.com/stats/visitors?site_id=' + idArray[i] + '&href='
-      for (var j = 3, cn = urlParts.length; j < cn; j++) {
-        contentUrl += '/' + urlParts[j]
+// Listen for notification clicks (add this listener at the top level)
+chrome.notifications.onClicked.addListener(async (notificationId) => {
+  console.log(`Notification clicked: ${notificationId}`)
+  if (notificationId.startsWith('clickyGoal_')) {
+    const storageKey = `notification_url_${notificationId}`
+    try {
+      const data = await chrome.storage.local.get(storageKey)
+      if (data[storageKey]) {
+        chrome.tabs.create({ url: data[storageKey], selected: true })
+        // Clean up the stored URL after opening
+        await chrome.storage.local.remove(storageKey)
+      } else {
+        console.warn('No URL found for clicked notification:', notificationId)
       }
-      ClickyChrome.Functions.openUrl(contentUrl)
-      break
+      // Clear the notification after click
+      chrome.notifications.clear(notificationId)
+    } catch (error) {
+      console.error('Error handling notification click:', error)
     }
+  } else if (notificationId === 'clickySample') {
+    console.log('Sample notification clicked.')
+    chrome.notifications.clear(notificationId)
   }
-}
-
-// Init
-$(function () {
-  ClickyChrome.Background.init()
 })
+
+// Optional: Listen for button clicks if buttons are added
+// chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) => {
+//   console.log(`Button ${buttonIndex} clicked on notification ${notificationId}`);
+//   // Handle button actions
+//   chrome.notifications.clear(notificationId);
+// });
+
+/**
+ * Creates sample desktop notification.
+ */
+function createSampleNotification() {
+  const notificationId = 'clickySample'
+  const notificationOptions = {
+    type: 'basic',
+    iconUrl: chrome.runtime.getURL('images/clicky_icon_48.png'),
+    title: 'Sample Clicky Goal',
+    message: "Example Visitor completed 'Sign Up'",
+    priority: 1,
+  }
+  chrome.notifications.create(notificationId, notificationOptions, (id) => {
+    if (chrome.runtime.lastError) {
+      console.error('Error creating sample notification:', chrome.runtime.lastError)
+    } else {
+      if (ClickyChrome.Background.debug) console.log('Sample notification created:', id)
+    }
+  })
+}
+
+/**
+ * Garbage collection for goal log stored in chrome.storage.local.
+ */
+async function cleanGoalLog() {
+  if (ClickyChrome.Background.debug) console.log('Cleaning goal log...')
+  try {
+    const data = await chrome.storage.local.get('clickychrome_goalLog')
+    const goalLog = data.clickychrome_goalLog || {}
+    const nowSeconds = Math.floor(new Date().getTime() / 1000)
+    let changed = false
+    let deletedCount = 0
+
+    for (const id in goalLog) {
+      if (goalLog.hasOwnProperty(id)) {
+        // Ensure timestamp exists and is a number
+        const timestamp = Number(goalLog[id]?.timestamp)
+        if (!isNaN(timestamp) && nowSeconds - timestamp > GOAL_LOG_EXPIRY_SECONDS) {
+          delete goalLog[id]
+          changed = true
+          deletedCount++
+          if (ClickyChrome.Background.debug) console.log(`Goal log entry #${id} deleted (expired).`)
+        } else if (isNaN(timestamp)) {
+          console.warn(`Goal log entry #${id} has invalid timestamp, removing.`)
+          delete goalLog[id]
+          changed = true
+          deletedCount++
+        }
+      }
+    }
+
+    if (changed) {
+      await chrome.storage.local.set({ clickychrome_goalLog: goalLog })
+      if (ClickyChrome.Background.debug)
+        console.log(`Goal log cleaned. ${deletedCount} entries removed.`)
+    } else {
+      if (ClickyChrome.Background.debug) console.log('Goal log clean. No expired entries found.')
+    }
+  } catch (error) {
+    console.error('Error cleaning goal log:', error)
+  }
+}
+
+// --- Context Menu ---
+let currentContextMenuId = null
+
+async function setupContextMenu() {
+  console.log('Setting up context menu...')
+  try {
+    // Remove existing menu item before creating/updating
+    if (currentContextMenuId) {
+      try {
+        await chrome.contextMenus.remove(currentContextMenuId)
+        if (ClickyChrome.Background.debug)
+          console.log('Removed existing context menu:', currentContextMenuId)
+        currentContextMenuId = null
+      } catch (removeError) {
+        // Ignore error if menu ID doesn't exist (e.g., after browser restart)
+        if (ClickyChrome.Background.debug)
+          console.log('Context menu removal error (likely harmless):', removeError.message)
+      }
+    }
+
+    const data = await chrome.storage.local.get(['clickychrome_urls', 'clickychrome_ids'])
+    const urlsString = data.clickychrome_urls
+    const idsString = data.clickychrome_ids
+
+    if (!urlsString || !idsString) {
+      if (ClickyChrome.Background.debug)
+        console.log('Context menu not created: Missing URLs or IDs in storage.')
+      return // Don't create menu if no sites configured
+    }
+
+    const urls = urlsString.split(',')
+    const patterns = []
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i].trim()
+      if (url !== '') {
+        // Basic pattern matching, ensure it's treated as a hostname
+        const clean = url.replace(/^((?:[a-z][a-z0-9+\-.]*:)?\/\/)?(www\.)?/gi, '')
+        patterns.push(`*://${clean}/*`)
+        patterns.push(`*://www.${clean}/*`)
+      }
+    }
+
+    if (patterns.length > 0) {
+      currentContextMenuId = await chrome.contextMenus.create({
+        id: 'clickyViewPageStats', // Static ID is better for updates
+        title: 'View page stats on Clicky',
+        contexts: ['page', 'link'], // Show on page and links
+        documentUrlPatterns: patterns,
+        targetUrlPatterns: patterns, // Apply to link targets too
+      })
+      if (ClickyChrome.Background.debug)
+        console.log(
+          `Context menu created/updated. ID: ${currentContextMenuId}, Patterns: ${patterns.join(
+            ', '
+          )}`
+        )
+    } else {
+      if (ClickyChrome.Background.debug)
+        console.log('Context menu not created: No valid URL patterns found.')
+    }
+  } catch (error) {
+    console.error('Error setting up context menu:', error)
+  }
+}
+
+// Context menu click handler (needs to be top-level)
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === 'clickyViewPageStats') {
+    console.log('Context menu clicked:', info)
+    const pageUrl = info.pageUrl || info.linkUrl // Use linkUrl if clicked on a link
+    if (!pageUrl) {
+      console.warn('No URL found in context menu click info.')
+      return
+    }
+
+    try {
+      const data = await chrome.storage.local.get(['clickychrome_urls', 'clickychrome_ids'])
+      if (!data.clickychrome_urls || !data.clickychrome_ids) return
+
+      const urlArray = data.clickychrome_urls.split(',')
+      const idArray = data.clickychrome_ids.split(',')
+
+      for (let i = 0; i < urlArray.length; i++) {
+        const siteDomain = urlArray[i].trim()
+        if (siteDomain === '') continue
+
+        // More robust matching: check if pageUrl hostname contains the siteDomain
+        try {
+          const pageHostname = new URL(pageUrl).hostname.replace(/^www\./i, '')
+          const configuredHostname = siteDomain.replace(/^www\./i, '')
+          if (pageHostname === configuredHostname) {
+            const siteId = idArray[i]
+            if (ClickyChrome.Background.debug)
+              console.log(`Context matched ${siteDomain}, ID: ${siteId}`)
+
+            // Construct the Clicky stats URL for the specific page path
+            const pagePath =
+              new URL(pageUrl).pathname + new URL(pageUrl).search + new URL(pageUrl).hash
+            // Clicky uses href parameter relative to root
+            const contentUrl = `https://getclicky.com/stats/visitors?site_id=${siteId}&href=${encodeURIComponent(
+              pagePath
+            )}`
+
+            await chrome.tabs.create({ url: contentUrl, selected: true })
+            return // Stop after first match
+          }
+        } catch (urlError) {
+          console.warn('Could not parse URL for context matching:', pageUrl, urlError)
+          // Simple regex fallback (less reliable)
+          const cleanPattern = siteDomain.replace(/^((?:[a-z][a-z0-9+\-.]*:)?\/\/)?(www\.)?/gi, '')
+          const re = new RegExp(
+            `https://${cleanPattern}/|http://${cleanPattern}/|https://www.${cleanPattern}/|http://www.${cleanPattern}/`,
+            'i'
+          )
+          if (re.test(pageUrl)) {
+            const siteId = idArray[i]
+            if (ClickyChrome.Background.debug)
+              console.log(`Context matched (regex fallback) ${siteDomain}, ID: ${siteId}`)
+            const pagePath = pageUrl.split('/').slice(3).join('/') // Basic path extraction
+            const contentUrl = `https://getclicky.com/stats/visitors?site_id=${siteId}&href=/${encodeURIComponent(
+              pagePath
+            )}`
+            await chrome.tabs.create({ url: contentUrl, selected: true })
+            return
+          }
+        }
+      }
+      console.log('Context menu clicked, but no matching site domain found for URL:', pageUrl)
+    } catch (error) {
+      console.error('Error handling context menu click:', error)
+    }
+  }
+})
+
+console.log('Clicky Monitor Service Worker Loaded.')

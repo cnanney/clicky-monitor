@@ -1,10 +1,10 @@
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "name": "Clicky Monitor",
-  "version": "2.0.4",
-  "description": "A Google Chrome extension for Clicky Web Analytics.",
+  "version": "3.0.0",
+  "description": "A Google Chrome extension for Clicky Web Analytics (Manifest V3 Updated).",
   "background": {
-    "page": "background.html"
+    "service_worker": "background.js"
   },
   "options_page": "options.html",
   "icons": {
@@ -13,14 +13,17 @@
     "48": "images/clicky_icon_48.png",
     "128": "images/clicky_icon_128.png"
   },
-  "browser_action": {
+  "action": {
     "default_icon": "images/clicky_icon.png",
     "default_popup": "popup.html"
   },
   "permissions": [
-    "tabs",
+    "storage",      
     "notifications",
     "contextMenus",
+    "alarms"       
+  ],
+  "host_permissions": [
     "http://api.getclicky.com/",
     "https://api.getclicky.com/"
   ]

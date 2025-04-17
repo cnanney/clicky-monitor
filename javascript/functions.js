@@ -10,202 +10,182 @@
  * http://www.opensource.org/licenses/mit-license.php
  */
 
-var ClickyChrome = ClickyChrome || {}
+/**
+ * Shared helper functions. No direct use of localStorage or background state.
+ * Uses chrome.action instead of chrome.browserAction.
+ */
 
+var ClickyChrome = ClickyChrome || {}
 ClickyChrome.Functions = {}
 
 /**
- * Returns abbreviation for visitors online, e.g. 1,500 = 1.5K
+ * Returns abbreviation for numbers, e.g., 1500 -> 1.5k
+ * (Simplified from original for badge display)
  *
- * @param {int} n
- *    Number to abbreviate
- *
- * @return string
+ * @param {number | string} n - Number to abbreviate.
+ * @returns {string} Abbreviated number string or original if small.
  */
 ClickyChrome.Functions.abvNum = function (n) {
-  var num = new Number(n)
-  if (num < 1000) {
-    return num
+  try {
+    const num = Number(n)
+    if (isNaN(num)) return '?' // Handle non-numeric input
+
+    if (num < 1000) {
+      return num.toString()
+    } else if (num < 10000) {
+      // Show one decimal place for 1k-9.9k
+      return (num / 1000).toFixed(1) + 'k'
+    } else if (num < 1000000) {
+      // Show integer for 10k-999k
+      return Math.floor(num / 1000) + 'k'
+    } else {
+      // Show >1m for millions
+      return '>1m'
+    }
+  } catch (e) {
+    console.error('Error in abvNum:', e)
+    return '?'
   }
-  if (num >= 1000 && num < 1100) {
-    return '1k'
-  }
-  if (num >= 1100 && num < 10000) {
-    num = num / 1000
-    return num.toString().substring(0, 3) + 'k'
-  }
-  if (num >= 10000 && num < 1000000) {
-    num = Math.floor(num / 1000)
-    return num.toFixed(0) + 'k'
-  }
-  if (num >= 1000000) {
-    return '>1m'
-  }
-  return false
 }
 
 /**
- * Returns nicely formatted time string, e.g. 1m 30s
+ * Returns nicely formatted time string, e.g., 90 -> 1m 30s
  *
- * @param {int} s
- *    Seconds to parse
- *
- * @return string
+ * @param {number | string} s - Seconds to parse.
+ * @returns {string} Formatted time string.
  */
 ClickyChrome.Functions.abvTime = function (s) {
-  var sec = Number(s),
-    hours = Math.floor(sec / 3600),
-    minutes = Math.floor((sec % 3600) / 60),
-    seconds = (sec % 3600) % 60
-  if (hours == 0) {
-    if (minutes == 0) {
-      return seconds + 's'
-    } else {
-      return minutes + 'm ' + seconds + 's'
-    }
-  } else {
-    return hours + 'h ' + minutes + 'm ' + seconds + 's'
+  try {
+    const sec = Number(s)
+    if (isNaN(sec) || sec < 0) return 'N/A'
+
+    const hours = Math.floor(sec / 3600)
+    const minutes = Math.floor((sec % 3600) / 60)
+    const seconds = Math.floor(sec % 60) // Use floor to avoid decimals
+
+    let parts = []
+    if (hours > 0) parts.push(hours + 'h')
+    if (minutes > 0) parts.push(minutes + 'm')
+    // Always show seconds if total time is less than a minute, or if there are remaining seconds
+    if (sec < 60 || seconds > 0) parts.push(seconds + 's')
+
+    return parts.join(' ') || '0s' // Return '0s' if input is 0
+  } catch (e) {
+    console.error('Error in abvTime:', e)
+    return 'N/A'
   }
 }
 
 /**
- * Returns a number formatted with commas, e.g. 1234 = 1,234
+ * Returns a number formatted with commas, e.g. 1234 -> 1,234
  *
- * @param {int} n
- *    Number to format
- *
- * @return string
+ * @param {number | string} n - Number to format.
+ * @returns {string} Formatted number string.
  */
 ClickyChrome.Functions.addCommas = function (n) {
-  var s = n.toString(),
-    x = s.split('.'),
-    x1 = x[0],
-    x2 = x.length > 1 ? '.' + x[1] : '',
-    rgx = /(\d+)(\d{3})/
-  while (rgx.test(x1)) {
-    x1 = x1.replace(rgx, '$1' + ',' + '$2')
+  try {
+    const num = Number(n)
+    if (isNaN(num)) return n?.toString() || '' // Return original if not a number
+
+    return num.toLocaleString('en-US') // Use built-in locale string for formatting
+  } catch (e) {
+    console.error('Error in addCommas:', e)
+    // Fallback to simple string conversion
+    return n?.toString() || ''
   }
-  return x1 + x2
 }
 
 /**
- * Opens a new tab in Chrome and makes it active
+ * Opens a new tab in Chrome and makes it active.
+ * (This function might not be needed if popup.js handles external links directly)
+ * Kept for potential use by background/options.
  *
- * @param {string} url
- *    URL to open
+ * @param {string} url - URL to open.
  */
 ClickyChrome.Functions.openUrl = function (url) {
+  if (!url) {
+    console.error('openUrl called with no URL.')
+    return
+  }
   chrome.tabs.create({ url: url, selected: true })
 }
 
 /**
- * Sets badge title (what you see when you hover over icon)
+ * Sets action title (tooltip).
  *
- * @param {string} text
- *    Text to set
+ * @param {string} text - Text to set.
  */
 ClickyChrome.Functions.setTitle = function (text) {
-  var strText = text.toString()
-  chrome.browserAction.setTitle({ title: strText })
+  const strText = text ? text.toString() : ''
+  chrome.action.setTitle({ title: strText })
 }
 
 /**
- * Sets badge text
+ * Sets action badge text.
  *
- * @param {string} text
- *    Text to set
+ * @param {string} text - Text to set.
  */
 ClickyChrome.Functions.setBadgeText = function (text) {
-  var strText = text.toString()
-  chrome.browserAction.setBadgeText({ text: strText })
+  const strText = text ? text.toString() : ''
+  // Limit badge text length (Chrome enforces limits anyway, but good practice)
+  const badgeText = strText.length > 4 ? strText.substring(0, 3) + '…' : strText
+  chrome.action.setBadgeText({ text: badgeText })
 }
 
 /**
- * Updates badge with desired number
+ * Updates action badge with a number, abbreviating if large.
  *
- * @param {int} n
- *    The number, duh
+ * @param {number | string} n - The number to display.
  */
 ClickyChrome.Functions.setBadgeNum = function (n) {
-  var num = new Number(n)
-  if (num > 0) {
-    this.setBadgeText(this.abvNum(num))
-  } else {
-    this.setBadgeText('')
+  try {
+    const num = Number(n)
+    if (isNaN(num) || num <= 0) {
+      this.setBadgeText('') // Clear badge for 0 or invalid numbers
+    } else {
+      this.setBadgeText(this.abvNum(num))
+    }
+  } catch (e) {
+    console.error('Error in setBadgeNum:', e)
+    this.setBadgeText('?') // Indicate error on badge
   }
 }
 
-/**
- * Sets badge text
- *
- * @param {array} c
- *    Array of color values
- */
-ClickyChrome.Functions.setBadgeColor = function (c) {
-  chrome.browserAction.setBadgeBackgroundColor({ color: c })
-}
+// setBadgeColor is now handled directly in background.js using chrome.action.setBadgeBackgroundColor
 
 /**
- * Gets variables from URL query string, used for notifications
+ * Returns size of an object (number of own enumerable properties).
  *
- * NO LONGER USED
- *
- * @return object
- */
-ClickyChrome.Functions.getUrlVars = function () {
-  var vars = [],
-    hash
-  var hashes = window.location.href.slice(window.location.href.indexOf('?') + 1).split('&')
-  for (var i = 0; i < hashes.length; i++) {
-    hash = hashes[i].split('=')
-    vars.push(hash[0])
-    vars[hash[0]] = unescape(hash[1])
-  }
-  return vars
-}
-
-/**
- * Returns size of an object
- *
- * @param {object} obj
- *    Object to check size of
- *
- * @return int
+ * @param {object} obj - Object to check size of.
+ * @returns {number} Size of the object.
  */
 ClickyChrome.Functions.objectSize = function (obj) {
-  var size = 0,
-    key
-  for (key in obj) {
-    if (obj.hasOwnProperty(key)) size++
+  if (!obj || typeof obj !== 'object') {
+    return 0
   }
-  return size
+  return Object.keys(obj).length
 }
 
+// --- Raphael Chart Drawing Functions ---
+// These assume Raphael.js is loaded in the popup context (popup.html)
+// They remain largely unchanged structurally but ensure data is passed correctly.
+
 /**
- * Draws browser pie chart using Raphael JS library
+ * Draws browser pie chart using Raphael JS library.
  *
- * @param {array} d
- *    Data array
- * @param {array} l
- *    Label array
- * @param {array} u
- *    URL array
+ * @param {array} d - Data array (percentages).
+ * @param {array} l - Label array (browser names).
+ * @param {array} u - URL array (links for slices).
  */
 ClickyChrome.Functions.drawPie = function (d, l, u) {
-  var r = Raphael('chart')
-  var colors1 = [
-      '#6293da',
-      '#6e92c9',
-      '#7e91b3',
-      '#908f9a',
-      '#a48e7e',
-      '#b88d62',
-      '#cc8b47',
-      '#de8a2e',
-      '#ee8918',
-      '#fa8806',
-    ],
-    colors2 = [
+  try {
+    if (typeof Raphael === 'undefined') throw new Error('Raphael library not loaded.')
+    if (!document.getElementById('chart')) throw new Error('Chart container element not found.')
+
+    $('#chart').empty() // Clear previous chart
+    const r = Raphael('chart') // Specify container ID
+    // Colors (keep original colors)
+    const colors = [
       '#6195e1',
       '#6b9be1',
       '#78a3e1',
@@ -217,333 +197,273 @@ ClickyChrome.Functions.drawPie = function (d, l, u) {
       '#d3d9e1',
       '#dddfe1',
     ]
-  for (var i = 0; i < l.length; i++) {
-    l[i] = '%%.% - ' + l[i]
+    // Format labels for legend
+    const legendLabels = l.map((label) => `%%.% - ${label}`)
+
+    const pie = r.piechart(150, 100, 80, d, {
+      // Adjusted center X for potentially smaller popup? Check layout.
+      legend: legendLabels,
+      legendpos: 'west', // Keep legend position
+      colors: colors.slice(0, d.length), // Use only needed colors
+      href: u,
+      strokewidth: 1, // Add a small stroke for definition
+      stroke: '#fff',
+    })
+
+    // Add hover effects (same as original)
+    pie.hover(
+      function () {
+        this.sector
+          .stop()
+          .animate({ transform: 's1.1 1.1 ' + this.cx + ' ' + this.cy }, 500, 'elastic')
+        if (this.label) {
+          this.label[0].stop().animate({ scale: 1.5 }, 500, 'elastic')
+          this.label[1].attr({ 'font-weight': 800 })
+        }
+      },
+      function () {
+        this.sector.stop().animate({ transform: '' }, 500, 'elastic') // Reset transform
+        if (this.label) {
+          this.label[0].stop().animate({ scale: 1 }, 500, 'elastic')
+          this.label[1].attr({ 'font-weight': 400 })
+        }
+      }
+    )
+    console.log('Pie chart drawn successfully.')
+  } catch (error) {
+    console.error('Error drawing pie chart:', error)
+    $('#chart').html('<p>Error drawing chart.</p>') // Show error in chart area
   }
-  var pie = r.g.piechart(305, 100, 80, d, {
-    legend: l,
-    legendpos: 'west',
-    colors: colors2,
-    href: u,
-  })
-  pie.hover(
-    function () {
-      this.sector.stop()
-      this.sector.scale(1.1, 1.1, this.cx, this.cy)
-      if (this.label) {
-        this.label[0].stop()
-        this.label[0].scale(1.5)
-        this.label[1].attr({ 'font-weight': 800 })
-      }
-    },
-    function () {
-      this.sector.animate({ scale: [1, 1, this.cx, this.cy] }, 500, 'bounce')
-      if (this.label) {
-        this.label[0].animate({ scale: 1 }, 500, 'bounce')
-        this.label[1].attr({ 'font-weight': 400 })
-      }
-    }
-  )
 }
 
 /**
- * Draws charts for visitors and actions using Raphael JS library
+ * Draws line charts for visitors and actions using Raphael JS library.
  *
- * @param {array} d
- *    Data array
- *  @param {array} l
- *    Label array
- *  @param {array} t
- *    Type of chart, visitors or actions
+ * @param {string} d - Comma-separated data string.
+ * @param {string} l - Comma-separated label string (dates).
+ * @param {string} t - Type of chart ('visitors' or 'actions').
  */
 ClickyChrome.Functions.drawChart = function (d, l, t) {
-  // Metric name
-  var lineInfo = {
-      visitors: {
-        metricSingular: 'Visitor',
-        metricPlural: 'Visitors',
-        mainColor: '#5D93E1',
-      },
-      actions: {
-        metricSingular: 'Action',
-        metricPlural: 'Actions',
-        mainColor: '#F80',
-      },
-    },
-    months = {
-      '01': 'January',
-      '02': 'February',
-      '03': 'March',
-      '04': 'April',
-      '05': 'May',
-      '06': 'June',
-      '07': 'July',
-      '08': 'August',
-      '09': 'September',
-      10: 'October',
-      11: 'November',
-      12: 'December',
-    },
-    data = d.split(','),
-    labels = l.split(','),
-    // # of horizontal sections in graph
-    hSplit = 5,
-    // # of vertical sections in graph
-    vSplit = 4,
-    // Grid details
-    gridColor = '#aaa',
-    gridWidth = '.2',
-    showVertGrid = false,
-    showVertTicks = true,
-    showHorizGrid = true,
-    showHorizTicks = true,
-    // Graph borders
-    bottomGutter = 20,
-    topGutter = 20,
-    // Graph line styling
-    lineWidth = 3,
-    lineColor = lineInfo[t].mainColor,
-    // Data point styling
-    pointRadius = 0,
-    pointFill = lineInfo[t].mainColor,
-    pointStroke = 'none',
-    pointStrokeWidth = 0,
-    pointHoverRadius = 5,
-    pointHoverFill = lineInfo[t].mainColor,
-    pointHoverStroke = 'none',
-    pointHoverStrokeWidth = 0,
-    // Graph fill?
-    showFill = true,
-    fillOpacity = '.2',
-    // Text stylings
-    txtData = { font: '10px Fontin-Sans, Arial', fill: '#000', 'text-anchor': 'end' },
-    txtLabels = { font: '12px Fontin-Sans, Arial', fill: '#000', 'text-anchor': 'start' },
-    txtHoverData = { font: 'bold 12px Fontin-Sans, Arial', fill: '#000' },
-    txtHoverLabels = { font: '10px Fontin-Sans, Arial', fill: '#000' },
-    // Popup styling
-    hoverStrokeWidth = 3,
-    hoverStrokeColor = '#aaa',
-    hoverFillColor = '#eee',
-    leftGutter,
-    i,
-    max = Math.max.apply(Math, data)
-  // Width of gutter depends on length of max data point
-  var maxP = max.toString().length
-  switch (maxP) {
-    case 7:
-      leftGutter = 55
-      break
-    case 6:
-      leftGutter = 45
-      break
-    case 5:
-      leftGutter = 40
-      break
-    case 4:
-      leftGutter = 35
-      break
-    case 3:
-      leftGutter = 25
-      break
-    case 2:
-      leftGutter = 20
-      break
-    case 1:
-      leftGutter = 15
-      break
-    default:
-      leftGutter = 40
-  }
-  // Height of graph
-  var height = 188
-  // Width of graph
-  var width = 400
+  try {
+    if (typeof Raphael === 'undefined') throw new Error('Raphael library not loaded.')
+    if (!document.getElementById('chart')) throw new Error('Chart container element not found.')
+    if (!d || !l) throw new Error('Missing data or labels for line chart.')
 
-  // Increment measurements
-  var X = (width - leftGutter) / labels.length
-  var Y = (height - bottomGutter - topGutter) / max
+    $('#chart').empty() // Clear previous chart
 
-  // Initialize this mofo
-  var r = Raphael('chart', width, height)
-  // Put data oldest->newest
-  data.reverse()
-  labels.reverse()
-
-  // Setup and draw y-axis labels
-  var rH = (height - topGutter - bottomGutter) / vSplit,
-    vT = topGutter,
-    vI = Math.ceil(max / vSplit),
-    vL = max
-  for (i = 0; i <= vSplit; i++) {
-    if (i == vSplit) vL = '0'
-    r.text(leftGutter - 4, vT, this.addCommas(vL)).attr(txtData)
-    vT += rH
-    vL -= vI
-  }
-
-  // Start drawing!
-  var path = r
-      .path()
-      .attr({ stroke: lineColor, 'stroke-width': lineWidth, 'stroke-linejoin': 'round' }),
-    frame = r
-      .rect(10, 10, 200, 40, 5)
-      .attr({ fill: hoverFillColor, stroke: hoverStrokeColor, 'stroke-width': hoverStrokeWidth })
-      .hide(),
-    is_label_visible = false,
-    leave_timer,
-    blanket = r.set(),
-    label = []
-  // Placeholders
-  label[0] = r.text(60, 10, '').attr(txtHoverData).hide()
-  label[1] = r.text(60, 40, '').attr(txtHoverLabels).hide()
-
-  if (showFill)
-    var bgp = r
-      .path()
-      .attr({ stroke: 'none', opacity: fillOpacity, fill: lineColor })
-      .moveTo(leftGutter + X * 0.5, height - bottomGutter)
-
-  // Loop through data and draw graph
-  var divPoints = []
-  for (i = 0, ii = labels.length; i < ii; i++) {
-    var labelDate = labels[i].split('-'),
-      labelDay = labelDate[2].charAt(0) == '0' ? labelDate[2].substring(1) : labelDate[2],
-      thisAbvDate = months[labelDate[1]].substring(0, 3) + ' ' + labelDay,
-      y = Math.floor(height - bottomGutter - Y * data[i]),
-      x = Math.floor(leftGutter + X * (i + 0.5)),
-      stop = Math.floor(ii / hSplit)
-
-    // X-axis labels for each horizontal section
-    if (i % stop == 0 && i < ii - 1) {
-      r.text(x, height - 6, thisAbvDate)
-        .attr(txtLabels)
-        .toBack()
-      divPoints.push(x)
+    // --- Chart Configuration (mostly from original) ---
+    const lineInfo = {
+      visitors: { metricSingular: 'Visitor', metricPlural: 'Visitors', mainColor: '#5D93E1' },
+      actions: { metricSingular: 'Action', metricPlural: 'Actions', mainColor: '#F80' },
     }
-    // Draw path
-    if (showFill) bgp[i == 0 ? 'lineTo' : 'lineTo'](x, y, 10)
-    path[i == 0 ? 'moveTo' : 'lineTo'](x, y, 10)
-    var dot = r.circle(x, y, 0)
-    blanket.push(
-      r
-        .rect(leftGutter + X * i, topGutter - pointHoverRadius, X, height - bottomGutter)
-        .attr({ stroke: 'none', fill: '#fff', opacity: 0 })
-    )
-    var rect = blanket[blanket.length - 1]
+    const months = {
+      '01': 'Jan',
+      '02': 'Feb',
+      '03': 'Mar',
+      '04': 'Apr',
+      '05': 'May',
+      '06': 'Jun',
+      '07': 'Jul',
+      '08': 'Aug',
+      '09': 'Sep',
+      10: 'Oct',
+      11: 'Nov',
+      12: 'Dec',
+    }
+    const data = d.split(',').map(Number) // Convert data to numbers
+    const labels = l.split(',')
 
-    ;(function (x, y, data, lbl, dot) {
-      $(rect.node).hover(
-        function () {
-          clearTimeout(leave_timer)
-          // Hover date
-          var hoverDate = lbl.split('-')
-          var hoverDay = hoverDate[2].charAt(0) == '0' ? hoverDate[2].substring(1) : hoverDate[2]
-          var thisDate = months[hoverDate[1]].substring(0, 3) + ' ' + hoverDay + ', ' + hoverDate[0]
+    if (data.length !== labels.length || data.length === 0) {
+      throw new Error('Data and label lengths mismatch or are empty.')
+    }
 
-          // Hover styling and positioning
-          label[0].attr({
-            text:
-              ClickyChrome.Functions.addCommas(data) +
-              ' ' +
-              (data == 1 ? lineInfo[t].metricSingular : lineInfo[t].metricPlural),
+    // Dimensions and Gutters (adjust if needed for popup size)
+    const width = 400
+    const height = 188
+    const topGutter = 20
+    const bottomGutter = 30 // Increased for labels
+    const maxVal = Math.max(...data, 0) // Ensure max is at least 0
+    const maxValLength = Math.max(maxVal, 1).toString().length // Use length of max value (or 1 if max is 0)
+    const leftGutter = Math.max(25, maxValLength * 7 + 10) // Dynamic left gutter based on max value length
+
+    // Axis Splits
+    const hSplit = Math.min(5, data.length - 1) // Max 5 horizontal divisions, ensure > 0
+    const vSplit = 4 // Vertical divisions
+
+    // Grid/Line/Point Styles
+    const gridColor = '#ddd'
+    const gridWidth = 0.5
+    const lineWidth = 2
+    const lineColor = lineInfo[t]?.mainColor || '#000'
+    const pointRadius = 0 // No points by default
+    const pointHoverRadius = 4
+    const showFill = true
+    const fillOpacity = 0.1
+
+    // Text Styles
+    const txtData = { font: '10px Arial, sans-serif', fill: '#333', 'text-anchor': 'end' }
+    const txtLabels = { font: '10px Arial, sans-serif', fill: '#666', 'text-anchor': 'middle' } // Center x-axis labels
+    const txtHoverPopup = { font: 'bold 11px Arial, sans-serif', fill: '#000' }
+    const txtHoverDate = { font: '10px Arial, sans-serif', fill: '#333' }
+
+    // Hover Popup Styles
+    const hoverStrokeWidth = 1
+    const hoverStrokeColor = '#ccc'
+    const hoverFillColor = '#fff'
+
+    // --- Calculations ---
+    const X = (width - leftGutter) / (labels.length > 1 ? labels.length - 1 : 1) // Avoid division by zero if only one point
+    const Y = (height - bottomGutter - topGutter) / (maxVal > 0 ? maxVal : 1) // Avoid division by zero if max is 0
+
+    // --- Initialize Raphael ---
+    const r = Raphael('chart', width, height)
+
+    // --- Draw Y-axis Labels and Grid ---
+    const rH = (height - topGutter - bottomGutter) / vSplit // Height of each vertical section
+    for (let i = 0; i <= vSplit; i++) {
+      const yPos = topGutter + i * rH
+      const yLabel = Math.round(maxVal * (1 - i / vSplit)) // Calculate label value
+      r.text(leftGutter - 6, yPos, this.addCommas(yLabel)).attr(txtData)
+      // Horizontal grid line
+      if (i > 0 && i < vSplit) {
+        // Don't draw top/bottom lines over potential border
+        r.path(`M${leftGutter},${yPos}H${width}`).attr({
+          stroke: gridColor,
+          'stroke-width': gridWidth,
+          'stroke-dasharray': '.',
+        })
+      }
+    }
+
+    // --- Draw X-axis Labels and Grid ---
+    const xLabelPoints = [] // Store x positions for vertical grid lines
+    const labelStep = Math.max(1, Math.floor(labels.length / (hSplit + 1))) // Determine label frequency
+    for (let i = 0; i < labels.length; i++) {
+      const xPos = leftGutter + i * X
+      if (i % labelStep === 0 || i === labels.length - 1) {
+        // Show first, last, and intermediate labels
+        const dateParts = labels[i].split('-') // YYYY-MM-DD
+        const labelText = `${months[dateParts[1]]} ${parseInt(dateParts[2])}` // Format as "Mon DD"
+        r.text(xPos, height - bottomGutter + 12, labelText).attr(txtLabels)
+        xLabelPoints.push(xPos)
+        // Vertical grid line
+        if (xPos > leftGutter) {
+          // Don't draw at the very beginning
+          r.path(`M${xPos},${topGutter}V${height - bottomGutter}`).attr({
+            stroke: gridColor,
+            'stroke-width': gridWidth,
+            'stroke-dasharray': '.',
           })
-          label[1].attr({ text: thisDate })
-
-          var l0w = label[0].getBBox().width,
-            l1w = label[1].getBBox().width,
-            thisHoverW = l0w > l1w ? l0w + 20 : l1w + 20
-
-          // Hover coordinates and adjustments to keep within graph
-          var newcoord = { x: x + 10, y: y - 10 }
-          if (newcoord.x + (thisHoverW + 20) > width) newcoord.x -= thisHoverW + 20
-          if (newcoord.y + 50 > height - bottomGutter) newcoord.y = height - bottomGutter - 50
-          if (newcoord.y - topGutter < 10) newcoord.y = topGutter + 10
-
-          frame
-            .attr({ width: thisHoverW })
-            .animate({ x: newcoord.x, y: newcoord.y }, 100 * is_label_visible)
-            .show()
-          label[0]
-            .show()
-            .animateWith(
-              frame,
-              { x: +newcoord.x + thisHoverW / 2, y: +newcoord.y + 14 },
-              100 * is_label_visible
-            )
-          label[1]
-            .show()
-            .animateWith(
-              frame,
-              { x: +newcoord.x + thisHoverW / 2, y: +newcoord.y + 28 },
-              100 * is_label_visible
-            )
-          dot.attr({
-            r: pointHoverRadius,
-            fill: pointHoverFill,
-            stroke: pointHoverStroke,
-            'stroke-width': pointHoverStrokeWidth,
-          })
-          is_label_visible = true
-        },
-        function () {
-          dot.attr({
-            r: pointRadius,
-            fill: pointFill,
-            stroke: pointStroke,
-            'stroke-width': pointStrokeWidth,
-          })
-          leave_timer = setTimeout(function () {
-            frame.hide()
-            label[0].hide()
-            label[1].hide()
-            is_label_visible = false
-          }, 1)
         }
-      )
-    })(x, y, data[i], labels[i], dot)
+      }
+    }
+
+    // --- Prepare Path Strings ---
+    let pathString = `M${leftGutter},${height - bottomGutter - Y * data[0]}`
+    let fillString = `M${leftGutter},${height - bottomGutter}L${leftGutter},${
+      height - bottomGutter - Y * data[0]
+    }`
+
+    for (let i = 1; i < labels.length; i++) {
+      const x = leftGutter + i * X
+      const y = height - bottomGutter - Y * data[i]
+      pathString += `L${x},${y}`
+      fillString += `L${x},${y}`
+    }
+    fillString += `L${leftGutter + (labels.length - 1) * X},${height - bottomGutter}Z` // Close fill path
+
+    // --- Draw Fill and Line ---
+    if (showFill && data.length > 1) {
+      r.path(fillString).attr({ stroke: 'none', fill: lineColor, opacity: fillOpacity })
+    }
+    if (data.length > 0) {
+      // Draw line only if data exists
+      r.path(pathString).attr({
+        stroke: lineColor,
+        'stroke-width': lineWidth,
+        'stroke-linejoin': 'round',
+      })
+    }
+
+    // --- Draw Hover Effects ---
+    const cover = r
+      .rect(leftGutter, topGutter, width - leftGutter, height - topGutter - bottomGutter)
+      .attr({ fill: '#fff', opacity: 0 }) // Invisible cover rect for hover
+    const popup = r.set() // Set for popup elements (frame, text)
+    const frame = r
+      .rect(0, 0, 100, 40, 5)
+      .attr({ fill: hoverFillColor, stroke: hoverStrokeColor, 'stroke-width': hoverStrokeWidth })
+      .hide()
+    const hoverLabelVal = r.text(0, 0, '').attr(txtHoverPopup).hide()
+    const hoverLabelDate = r.text(0, 0, '').attr(txtHoverDate).hide()
+    popup.push(frame, hoverLabelVal, hoverLabelDate)
+
+    let currentDot = null // To track the active hover dot
+
+    cover.mousemove(function (event) {
+      const bb = cover.getBBox()
+      const mouseX = event.offsetX || event.layerX // Get mouse X relative to SVG container
+      const graphX = mouseX - bb.x // Mouse X relative to graph area
+      const pointIndex = Math.round(graphX / X)
+
+      if (pointIndex >= 0 && pointIndex < data.length) {
+        const x = leftGutter + pointIndex * X
+        const y = height - bottomGutter - Y * data[pointIndex]
+        const val = data[pointIndex]
+        const dateLabel = labels[pointIndex]
+
+        // Update or create hover dot
+        if (!currentDot) {
+          currentDot = r.circle(x, y, pointHoverRadius).attr({ fill: lineColor, stroke: 'none' })
+        } else {
+          currentDot.attr({ cx: x, cy: y }).show()
+        }
+
+        // Format popup text
+        const valText = `${ClickyChrome.Functions.addCommas(val)} ${
+          val === 1 ? lineInfo[t].metricSingular : lineInfo[t].metricPlural
+        }`
+        const dateParts = dateLabel.split('-')
+        const dateText = `${months[dateParts[1]]} ${parseInt(dateParts[2])}, ${dateParts[0]}`
+        hoverLabelVal.attr({ text: valText })
+        hoverLabelDate.attr({ text: dateText })
+
+        // Position popup
+        const popupWidth =
+          Math.max(hoverLabelVal.getBBox().width, hoverLabelDate.getBBox().width) + 20
+        const popupHeight = 40
+        frame.attr({ width: popupWidth })
+
+        let popupX = x + 10
+        let popupY = y - popupHeight - 5
+
+        // Adjust if too close to edges
+        if (popupX + popupWidth > width) popupX = x - popupWidth - 10
+        if (popupX < 0) popupX = 10
+        if (popupY < 0) popupY = y + 10
+
+        // Animate popup position and text
+        frame.attr({ x: popupX, y: popupY }).show()
+        hoverLabelVal.attr({ x: popupX + popupWidth / 2, y: popupY + 15 }).show()
+        hoverLabelDate.attr({ x: popupX + popupWidth / 2, y: popupY + 30 }).show()
+      } else {
+        // Hide if mouse is outside valid point range
+        if (currentDot) currentDot.hide()
+        popup.hide()
+      }
+    })
+
+    cover.mouseout(function () {
+      if (currentDot) currentDot.hide()
+      popup.hide()
+    })
+
+    console.log('Line chart drawn successfully.')
+  } catch (error) {
+    console.error('Error drawing line chart:', error)
+    $('#chart').html('<p>Error drawing chart.</p>') // Show error in chart area
   }
-  // Finish it up
-  if (showFill) bgp.lineTo(x, height - bottomGutter).andClose()
-  frame.toFront()
-  label[0].toFront()
-  label[1].toFront()
-  blanket.toFront()
-  // Draw grid
-  r.drawGrid(
-    'grid',
-    leftGutter + X * 0.5,
-    topGutter,
-    width - leftGutter - X,
-    height - topGutter - bottomGutter,
-    hSplit,
-    vSplit,
-    gridColor,
-    gridWidth,
-    showVertGrid,
-    showHorizGrid,
-    showVertTicks,
-    showHorizTicks,
-    divPoints.join(',')
-  ).toBack()
-  r.drawGrid(
-    'ticks',
-    leftGutter + X * 0.5,
-    topGutter,
-    width - leftGutter - X,
-    height - topGutter - bottomGutter,
-    hSplit,
-    vSplit,
-    gridColor,
-    gridWidth,
-    showVertGrid,
-    showHorizGrid,
-    showVertTicks,
-    showHorizTicks,
-    divPoints.join(',')
-  ).toBack()
-  // Add data legend
-  r.path(
-    'M' + (leftGutter + 10) + ',' + topGutter / 2 + 'L' + (leftGutter + 20) + ',' + topGutter / 2
-  ).attr({ stroke: lineColor, 'stroke-width': lineWidth })
-  r.text(leftGutter + 25, topGutter / 2, lineInfo[t].metricPlural).attr(txtLabels)
 }
+
+// Deprecated Function (example, remove if truly unused)
+// ClickyChrome.Functions.getUrlVars = function () { ... };
