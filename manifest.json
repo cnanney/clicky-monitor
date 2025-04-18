@@ -18,10 +18,11 @@
     "default_popup": "popup.html"
   },
   "permissions": [
-    "storage",      
+    "storage",
     "notifications",
     "contextMenus",
-    "alarms"       
+    "alarms",
+    "idle"
   ],
   "host_permissions": [
     "http://api.getclicky.com/",
