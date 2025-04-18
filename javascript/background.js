@@ -400,89 +400,110 @@ ClickyChrome.Background.showOptions = async () => {
  */
 async function checkSpy() {
   if (ClickyChrome.Background.debug) console.log('Spy: Fetching API data...')
-
+  let isDeepIdle = false // Check idle state locally for badge logic
   try {
     const settings = await chrome.storage.local.get([
       'clickychrome_currentSite',
       'clickychrome_spyType',
       'clickychrome_goalNotification',
       'clickychrome_startTime',
-      'currentIntervalLevel', // Needed to potentially clear 'IDLE' badge
+      'currentIntervalLevel',
     ])
 
-    // Check if currently in the longest idle state to avoid overwriting 'IDLE' badge
-    const isDeepIdle = settings.currentIntervalLevel === 't4'
+    isDeepIdle = settings.currentIntervalLevel === 't4'
 
     if (!settings.clickychrome_currentSite) {
-      console.log('Spy: No current site selected. Setting title.')
+      console.log('Spy: No current site selected.')
       ClickyChrome.Functions.setTitle('ClickyChrome - No Site Selected')
-      if (!isDeepIdle) ClickyChrome.Functions.setBadgeText('') // Clear badge if not deep idle
+      if (!isDeepIdle) ClickyChrome.Functions.setBadgeText('')
       return
     }
 
-    const siteInfo = settings.clickychrome_currentSite.split(',') // [id, key, name]
-    const spyType = settings.clickychrome_spyType || 'online'
+    const siteInfo = settings.clickychrome_currentSite.split(',')
+    const spyType = settings.clickychrome_spyType || 'online' // e.g., 'online', 'visitors', 'goals'
     const goalNotificationsEnabled = settings.clickychrome_goalNotification === 'yes'
     const startTime = settings.clickychrome_startTime || Date.now()
-
-    // Calculate goal time offset
     const now = Date.now()
     const elapsedSeconds = Math.floor((now - startTime) / 1000)
     let goalTimeOffset = 600
-    if (elapsedSeconds < 600) {
-      goalTimeOffset = Math.max(0, elapsedSeconds + 30) // Ensure non-negative
+    if (elapsedSeconds < 600) goalTimeOffset = Math.max(0, elapsedSeconds + 30)
+    if (ClickyChrome.Background.debug) console.log('Goal time offset:', goalTimeOffset)
+
+    // --- Map internal spyType to API type for badge ---
+    let apiBadgeType
+    switch (spyType) {
+      case 'online':
+        apiBadgeType = 'visitors-online'
+        break
+      case 'visitors':
+        apiBadgeType = 'visitors'
+        break
+      case 'goals':
+        apiBadgeType = 'goals'
+        break
+      default: // Fallback to visitors-online if spyType is unexpected
+        console.warn(`Unexpected spyType "${spyType}", defaulting badge type to visitors-online.`)
+        apiBadgeType = 'visitors-online'
     }
-    if (ClickyChrome.Background.debug) console.log('Goal time offset calculated:', goalTimeOffset)
+    if (ClickyChrome.Background.debug) {
+      console.log(`Internal spyType: ${spyType}, Mapped API badge type: ${apiBadgeType}`)
+    }
+    // --- End mapping ---
 
     // Build API URL
     let apiUrl = `https://api.getclicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&date=today&output=json&app=clickychrome`
     let types = []
-    switch (spyType) {
-      case 'online':
-        types.push('visitors-online')
-        break
-      case 'goals':
-        types.push('goals')
-        break
-      case 'visitors':
-        types.push('visitors')
-        break
-      default:
-        types.push('visitors-online')
-    }
+    // Use the *mapped* type for the initial request if it matches the badge type
+    types.push(apiBadgeType)
+
     if (goalNotificationsEnabled) {
-      if (!types.includes('goals')) types.push('goals')
-      // Fetch visitors-list for goal notification details
-      types.push('visitors-list')
+      // Ensure 'goals' and 'visitors-list' are included if not already the badge type
+      if (apiBadgeType !== 'goals' && !types.includes('goals')) {
+        types.push('goals')
+      }
+      if (!types.includes('visitors-list')) {
+        // Always need visitor list for goal details
+        types.push('visitors-list')
+      }
       apiUrl += `&goal=*&time_offset=${goalTimeOffset}`
     }
+    // Ensure no duplicates in types array
+    types = [...new Set(types)]
     apiUrl += `&type=${types.join(',')}`
 
-    // Update browser action title
-    updateTitle(siteInfo, spyType)
-
+    updateTitle(siteInfo, spyType) // Use local function, title depends on internal spyType
     if (ClickyChrome.Background.debug) console.log('API URL:', apiUrl)
 
     // Perform Fetch
     const response = await fetch(apiUrl, { cache: 'no-store' })
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
     const data = await response.json()
-
     if (ClickyChrome.Background.debug)
-      console.log('API Response Data:', JSON.stringify(data).substring(0, 500) + '...') // Log snippet
+      console.log('API Response:', JSON.stringify(data).substring(0, 500) + '...')
 
     if (data && Array.isArray(data) && data.length > 0 && data[0]) {
-      if (data[0].error) {
-        console.error('Clicky API Error:', data[0].error)
-        ClickyChrome.Functions.setTitle(`Error: ${data[0].error}`)
+      // Check for API error reported in the *first* item primarily
+      // (though errors could technically appear elsewhere)
+      let apiError = null
+      for (const item of data) {
+        if (item && item.error) {
+          apiError = item.error
+          break // Report first error found
+        }
+      }
+
+      if (apiError) {
+        console.error('Clicky API Error:', apiError)
+        ClickyChrome.Functions.setTitle(`Error: ${apiError}`)
         if (!isDeepIdle) ClickyChrome.Functions.setBadgeText('ERR')
       } else {
-        // Process Badge
-        let badgeData = data.find((item) => item.type === spyType)
+        // Process Badge using the mapped type
+        let badgeData = data.find((item) => item.type === apiBadgeType)
         let badgeValue = badgeData?.dates?.[0]?.items?.[0]?.value
 
+        // Special handling for goals type badge value
         if (spyType === 'goals' && badgeValue === undefined) {
-          // If goal spy type selected but no goals data found (maybe 0 goals), treat as 0
+          // If spyType is 'goals' but no 'goals' data with value returned, treat as 0
           let goalItem = data.find((item) => item.type === 'goals')
           if (goalItem?.dates?.[0]?.items?.length === 0 || !goalItem?.dates?.[0]?.items) {
             badgeValue = 0
@@ -492,11 +513,11 @@ async function checkSpy() {
         }
 
         if (badgeValue !== undefined) {
+          // Only update badge if not in deep idle (to preserve 'IDLE' text)
           if (!isDeepIdle) {
-            // Only update badge if not in deep idle (to preserve 'IDLE' text)
             ClickyChrome.Functions.setBadgeNum(badgeValue)
             if (ClickyChrome.Background.debug)
-              console.log(`Badge updated for ${spyType}:`, badgeValue)
+              console.log(`Badge updated for ${spyType} (${apiBadgeType}):`, badgeValue)
           } else {
             if (ClickyChrome.Background.debug)
               console.log(
@@ -504,7 +525,9 @@ async function checkSpy() {
               )
           }
         } else {
-          console.warn(`Could not find value for badge type '${spyType}' in API response.`)
+          console.warn(
+            `Could not find value for badge type '${apiBadgeType}' (mapped from '${spyType}') in API response.`
+          )
           if (!isDeepIdle) ClickyChrome.Functions.setBadgeText('?')
         }
 
@@ -519,7 +542,9 @@ async function checkSpy() {
             await processAndCreateNotifications(goalItems)
           } else {
             if (ClickyChrome.Background.debug)
-              console.log('Goal notifications enabled, but no goal visitor list data found.')
+              console.log(
+                'Goal notifications enabled, but no goal visitor list data found in response.'
+              )
           }
         }
       }
@@ -531,8 +556,9 @@ async function checkSpy() {
     console.error('Error in checkSpy:', error)
     ClickyChrome.Functions.setTitle('Clicky Monitor - API Error')
     // Only set ERR badge if not in deep idle state
-    const data = await chrome.storage.local.get('currentIntervalLevel')
-    if (data.currentIntervalLevel !== 't4') {
+    // Re-check state in case it changed during the async operation
+    const stateData = await chrome.storage.local.get('currentIntervalLevel')
+    if (stateData.currentIntervalLevel !== 't4') {
       ClickyChrome.Functions.setBadgeText('ERR')
     }
   }
