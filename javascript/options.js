@@ -66,12 +66,7 @@ function getFormData(form) {
       // Add a new row with input fields visible
       const string = `
                 <tr>
-                    <td>
-                        <div class="input_value">
-                         <img title="Drag to re-order" class="grip" src="/images/grippy.png" />
-                         <input class="input_name" name="name[]" value="" />
-                        </div>
-                    </td>
+                    <td><div class="input_value"><input class="input_name" name="name[]" value="" /></div></td>
                     <td><div class="input_value"><input class="input_url" name="url[]" value="" /></div></td>
                     <td><div class="input_value"><input class="input_id" name="id[]" value="" /></div></td>
                     <td><div class="input_value"><input class="input_key" name="key[]" value="" /></div></td>
