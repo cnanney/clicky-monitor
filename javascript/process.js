@@ -15,7 +15,6 @@
  * Avoids direct use of localStorage or background page variables.
  */
 
-var ClickyChrome = ClickyChrome || {}
 ClickyChrome.Process = {}
 
 /**

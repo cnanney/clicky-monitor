@@ -14,7 +14,6 @@
  * Functions to fetch data and build HTML for the popup content area.
  */
 
-const ClickyChrome = ClickyChrome || {}
 ClickyChrome.Build = {}
 
 // Get debug state asynchronously

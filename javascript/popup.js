@@ -10,7 +10,6 @@
  * http://www.opensource.org/licenses/mit-license.php
  */
 
-const ClickyChrome = ClickyChrome || {}
 ClickyChrome.Popup = {}
 
 // Get debug state asynchronously from background

@@ -14,14 +14,15 @@
  * Service Worker based background script.
  */
 
+self.ClickyChrome = self.ClickyChrome || {}
+
 // Import utility scripts
 try {
-  importScripts('javascript/functions.js', 'javascript/process.js')
+  importScripts('functions.js', 'process.js')
 } catch (e) {
   console.error('Error importing scripts:', e)
 }
 
-const ClickyChrome = ClickyChrome || {}
 ClickyChrome.Background = {}
 
 ClickyChrome.Background.debug = false // log events to console
