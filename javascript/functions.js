@@ -191,9 +191,9 @@ ClickyChrome.Functions.drawPie = function (d, l, u) {
     '#dddfe1',
   ]
   for (var i = 0; i < l.length; i++) {
-    l[i] = '%%.% - ' + l[i]
+    l[i] = '%%: ' + l[i]
   }
-  var pie = r.g.piechart(305, 100, 65, d, {
+  var pie = r.g.piechart(315, 100, 65, d, {
     legend: l,
     legendpos: 'west',
     colors: colors2,

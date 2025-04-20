@@ -173,7 +173,7 @@ ClickyChrome.Build.charts = async function (currentSite, currentChart) {
     let responseData
     if (currentChart === 'web-browsers') {
       chartTitle = 'Top Browsers, Last 30 Days'
-      linkUrl = `https://clicky.com/stats/visitors-browsers?site_id=${siteInfo[0]}`
+      linkUrl = `https://clicky.com/stats/platforms?site_id=${siteInfo[0]}`
       apiString = `${apiBase}&type=web-browsers&date=last-30-days&limit=11`
       console.log('Browser Chart API URL:', apiString)
       const response = await fetch(apiString, { cache: 'no-store' })
@@ -206,7 +206,7 @@ ClickyChrome.Build.charts = async function (currentSite, currentChart) {
             tmpData.push(othersPercent)
             tmpLabels.push('Others')
             tmpStatURLs.push(
-              `https://clicky.com/stats/visitors-browsers?site_id=${siteInfo[0]}&date=last-30-days`
+              `https://clicky.com/stats/platforms?site_id=${siteInfo[0]}&date=last-30-days`
             )
           }
           if (typeof ClickyChrome?.Functions?.drawPie !== 'function')
