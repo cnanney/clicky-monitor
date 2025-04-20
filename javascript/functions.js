@@ -166,10 +166,6 @@ ClickyChrome.Functions.objectSize = function (obj) {
   return Object.keys(obj).length
 }
 
-// --- Raphael Chart Drawing Functions ---
-// These assume Raphael.js is loaded in the popup context (popup.html)
-// They remain largely unchanged structurally but ensure data is passed correctly.
-
 /**
  * Draws browser pie chart using Raphael JS library
  *

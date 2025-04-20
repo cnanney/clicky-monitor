@@ -63,7 +63,7 @@ ClickyChrome.Process.visitors = function (items, siteInfo) {
 
   const processedVisitors = items.map((data) => {
     const visitor = {
-      ipLink: `https://getclicky.com/stats/visitors?site_id=${siteId}&ip_address=${
+      ipLink: `https://clicky.com/stats/visitors?site_id=${siteId}&ip_address=${
         data.ip_address || ''
       }`,
       contentUrl: (() => {
@@ -72,14 +72,14 @@ ClickyChrome.Process.visitors = function (items, siteInfo) {
         try {
           const url = new URL(data.landing_page)
           const path = url.pathname + url.search + url.hash
-          return `https://getclicky.com/stats/visitors?site_id=${siteId}&href=${encodeURIComponent(
+          return `https://clicky.com/stats/visitors?site_id=${siteId}&href=${encodeURIComponent(
             path
           )}`
         } catch (e) {
           const path = data.landing_page.startsWith('/')
             ? data.landing_page
             : `/${data.landing_page}`
-          return `https://getclicky.com/stats/visitors?site_id=${siteId}&href=${encodeURIComponent(
+          return `https://clicky.com/stats/visitors?site_id=${siteId}&href=${encodeURIComponent(
             path
           )}`
         }
@@ -87,7 +87,7 @@ ClickyChrome.Process.visitors = function (items, siteInfo) {
       statsUrl: data.stats_url || '#',
       flagImg:
         data.country_code && data.country_code !== 'xx'
-          ? `https://static.getclicky.com/media/flags/${data.country_code.toLowerCase()}.gif`
+          ? `https://static.clicky.com/media/flags/${data.country_code.toLowerCase()}.gif`
           : chrome.runtime.getURL('/images/icon_world.png'),
       geoLoc: data.geolocation || 'Unknown Location',
       customName: data.custom?.username || false,

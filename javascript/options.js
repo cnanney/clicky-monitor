@@ -21,12 +21,9 @@ function getFormData(form) {
 }
 
 ;(async () => {
-  // IIFE remains for top-level await
   console.log('Options script loaded.')
 
   $(async function () {
-    // jQuery document ready
-
     // --- Event Listeners ---
     $('tbody').on('click', '.edit_site', function (e) {
       e.preventDefault()
@@ -39,7 +36,7 @@ function getFormData(form) {
     })
     $('.add_site').on('click', function (e) {
       e.preventDefault()
-      const string = `<tr><td><div class="input_value"><img title="Drag to re-order" class="grip" src="/images/grippy.png" /><input class="input_name" name="name[]" value="" /></div></td><td><div class="input_value"><input class="input_url" name="url[]" value="" /></div></td><td><div class="input_value"><input class="input_id" name="id[]" value="" /></div></td><td><div class="input_value"><input class="input_key" name="key[]" value="" /></div></td><td class="edit"><a href="#" class="remove_site" title="Remove this site">remove</a></td></tr>`
+      const string = `<tr><td><div class="input_value"><input class="input_name" name="name[]" value="" /></div></td><td><div class="input_value"><input class="input_url" name="url[]" value="" /></div></td><td><div class="input_value"><input class="input_id" name="id[]" value="" /></div></td><td><div class="input_value"><input class="input_key" name="key[]" value="" /></div></td><td class="edit"><a href="#" class="remove_site" title="Remove this site">remove</a></td></tr>`
       $('tbody').append(string)
       ClickyChrome.Options.checkSites()
     })
@@ -52,17 +49,12 @@ function getFormData(form) {
       $('#import').slideToggle('slow')
     })
     if ($.fn.colorbox) {
-      // Check if colorbox plugin exists
-      // Original: $('#options_help, #context_help').colorbox({ title: true });
-
-      // Corrected: Use a function to explicitly get the title attribute
       $('#options_help, #context_help').colorbox({
         title: false,
       })
       console.log('Colorbox initialized for help links.')
     } else {
       console.warn('Colorbox not found, help links will open normally.')
-      // Fallback behavior if Colorbox isn't loaded
       $('#options_help, #context_help').on('click', function (e) {
         e.preventDefault()
         window.open($(this).attr('href'), '_blank')
@@ -77,7 +69,7 @@ function getFormData(form) {
       ClickyChrome.Options.checkVis($(this))
     })
     $(document).on('click', '#sample_notification', function (e) {
-      e.preventDefault() // Prevent the link's default '#' navigation
+      e.preventDefault()
       console.log('Sample notification link clicked.')
       // Send message to background script to trigger the sample
       chrome.runtime.sendMessage({ action: 'createSampleNotification' }, (response) => {
@@ -104,7 +96,7 @@ function getFormData(form) {
       }
 
       $('tbody tr[id!=reminder]').each(function () {
-        /* ... validation ... */ const $row = $(this)
+        const $row = $(this)
         const nameInput = $row.find('input.input_name')
         const urlInput = $row.find('input.input_url')
         const idInput = $row.find('input.input_id')
@@ -151,7 +143,7 @@ function getFormData(form) {
       $('#import_error').hide().text('')
       const username = $('#username').val()
       const password = $('#password').val()
-      const apiString = `https://api.getclicky.com/api/account/sites?username=${encodeURIComponent(
+      const apiString = `https://api.clicky.com/api/account/sites?username=${encodeURIComponent(
         username
       )}&password=${encodeURIComponent(password)}&output=json&app=${self.API_APP_PARAM}`
       try {

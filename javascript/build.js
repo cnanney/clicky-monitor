@@ -17,14 +17,14 @@ ClickyChrome.Build.basics = async function (currentSite, currentDate) {
   }
 
   const siteInfo = currentSite.split(',')
-  const linkURLBase = `https://getclicky.com/stats/home?site_id=${siteInfo[0]}`
-  const visitorsURL = `https://getclicky.com/stats/visitors?site_id=${siteInfo[0]}&date=${currentDate}`
-  const actionsURL = `https://getclicky.com/stats/visitors-actions?site_id=${siteInfo[0]}&date=${currentDate}`
-  const goalsURL = `https://getclicky.com/stats/goals?site_id=${siteInfo[0]}&date=${currentDate}`
+  const linkURLBase = `https://clicky.com/stats/home?site_id=${siteInfo[0]}`
+  const visitorsURL = `https://clicky.com/stats/visitors?site_id=${siteInfo[0]}&date=${currentDate}`
+  const actionsURL = `https://clicky.com/stats/visitors-actions?site_id=${siteInfo[0]}&date=${currentDate}`
+  const goalsURL = `https://clicky.com/stats/goals?site_id=${siteInfo[0]}&date=${currentDate}`
   const linkText = `View ${siteInfo[2]} on Clicky`
   const apiTypes =
     'visitors-online,visitors,actions,actions-average,time-total-pretty,time-average-pretty,bounce-rate,goals'
-  const apiString = `https://api.getclicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&date=${currentDate}&type=${apiTypes}&output=json&app=${self.API_APP_PARAM}`
+  const apiString = `https://api.clicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&date=${currentDate}&type=${apiTypes}&output=json&app=${self.API_APP_PARAM}`
 
   console.log('Basics API URL:', apiString)
 
@@ -81,9 +81,9 @@ ClickyChrome.Build.visitors = async function (currentSite) {
   }
 
   const siteInfo = currentSite.split(',')
-  const linkURL = `https://getclicky.com/stats/visitors?site_id=${siteInfo[0]}`
+  const linkURL = `https://clicky.com/stats/visitors?site_id=${siteInfo[0]}`
   const linkText = `View ${siteInfo[2]} on Clicky`
-  const apiString = `https://api.getclicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&type=visitors-list&output=json&limit=5&date=today&app=${self.API_APP_PARAM}`
+  const apiString = `https://api.clicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&type=visitors-list&output=json&limit=5&date=today&app=${self.API_APP_PARAM}`
 
   console.log('Visitors API URL:', apiString)
 
@@ -166,14 +166,14 @@ ClickyChrome.Build.charts = async function (currentSite, currentChart) {
     linkUrl,
     linkText,
     chartTitle = ''
-  const apiBase = `https://api.getclicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&output=json&app=${self.API_APP_PARAM}`
+  const apiBase = `https://api.clicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&output=json&app=${self.API_APP_PARAM}`
   linkText = `View ${siteInfo[2]} on Clicky`
 
   try {
     let responseData
     if (currentChart === 'web-browsers') {
       chartTitle = 'Top Browsers, Last 30 Days'
-      linkUrl = `https://getclicky.com/stats/visitors-browsers?site_id=${siteInfo[0]}`
+      linkUrl = `https://clicky.com/stats/visitors-browsers?site_id=${siteInfo[0]}`
       apiString = `${apiBase}&type=web-browsers&date=last-30-days&limit=11`
       console.log('Browser Chart API URL:', apiString)
       const response = await fetch(apiString, { cache: 'no-store' })
@@ -206,7 +206,7 @@ ClickyChrome.Build.charts = async function (currentSite, currentChart) {
             tmpData.push(othersPercent)
             tmpLabels.push('Others')
             tmpStatURLs.push(
-              `https://getclicky.com/stats/visitors-browsers?site_id=${siteInfo[0]}&date=last-30-days`
+              `https://clicky.com/stats/visitors-browsers?site_id=${siteInfo[0]}&date=last-30-days`
             )
           }
           if (typeof ClickyChrome?.Functions?.drawPie !== 'function')
@@ -225,7 +225,7 @@ ClickyChrome.Build.charts = async function (currentSite, currentChart) {
       chartTitle = `Daily ${
         currentChart.charAt(0).toUpperCase() + currentChart.slice(1)
       }, Previous 30 Days`
-      linkUrl = `https://getclicky.com/stats/${
+      linkUrl = `https://clicky.com/stats/${
         currentChart === 'actions' ? 'visitors-actions' : currentChart
       }?site_id=${siteInfo[0]}`
       apiString = `${apiBase}&type=${currentChart}&date=previous-30-days&daily=1`

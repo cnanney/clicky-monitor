@@ -6,9 +6,6 @@
 
 ClickyChrome.Popup = {}
 
-// IIFE removed as getDebugState is removed
-// $(async function() {}) structure for document ready
-
 $(async function () {
   console.log('Popup script loaded.')
 

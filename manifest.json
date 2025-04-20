@@ -26,7 +26,6 @@
     "tabs"
   ],
   "host_permissions": [
-    "http://api.getclicky.com/",
-    "https://api.getclicky.com/"
+    "https://api.clicky.com/"
   ]
 }

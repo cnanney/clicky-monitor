@@ -475,7 +475,7 @@ async function checkSpy() {
     console.log(`Internal spyType: ${spyType}, Mapped API badge type: ${apiBadgeType}`)
 
     // Construct API URL
-    let apiUrl = `https://api.getclicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&date=today&output=json&app=${API_APP_PARAM}`
+    let apiUrl = `https://api.clicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&date=today&output=json&app=${API_APP_PARAM}`
     let types = [apiBadgeType] // Start with the type needed for the badge
     if (goalNotificationsEnabled) {
       if (!types.includes('goals')) types.push('goals')
@@ -858,7 +858,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
             const pagePath =
               new URL(pageUrl).pathname + new URL(pageUrl).search + new URL(pageUrl).hash
             // Clicky uses href parameter relative to root, encode it properly
-            const contentUrl = `https://getclicky.com/stats/visitors?site_id=${siteId}&href=${encodeURIComponent(
+            const contentUrl = `https://clicky.com/stats/visitors?site_id=${siteId}&href=${encodeURIComponent(
               pagePath
             )}`
 

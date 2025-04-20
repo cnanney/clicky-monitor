@@ -1,4 +1,4 @@
-html{width:420px} /* Fix for http://crbug.com/61370 */
+html{width:420px} /* Fix for https://crbug.com/61370 */
 #wrapper{position:relative;width:400px;min-height:313px;background:#fff;padding:10px}
 #header{width:400px;height:45px;border-bottom:#eee 1px solid}
 #loading{position:absolute;top:38px;left:51px;}
