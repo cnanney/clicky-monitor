@@ -25,7 +25,6 @@ const ALARM_CLEAN_GOALS = 'cleanGoalLog'
 const GOAL_LOG_CLEAN_INTERVAL_MINUTES = 15
 const GOAL_LOG_EXPIRY_SECONDS = 900
 const IDLE_DETECTION_INTERVAL_SECONDS = 15 // Required minimum for chrome.idle
-const API_APP_PARAM = 'clickychrome' // Constant for API calls
 
 // Map original timings to minutes for alarms (minimum 1 minute period)
 const SPY_INTERVALS_MINUTES = {
@@ -475,7 +474,7 @@ async function checkSpy() {
     console.log(`Internal spyType: ${spyType}, Mapped API badge type: ${apiBadgeType}`)
 
     // Construct API URL
-    let apiUrl = `https://api.clicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&date=today&output=json&app=${API_APP_PARAM}`
+    let apiUrl = `https://api.clicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&date=today&output=json&app=${ClickyChrome.Const.URL_APP_PARAM}`
     let types = [apiBadgeType] // Start with the type needed for the badge
     if (goalNotificationsEnabled) {
       if (!types.includes('goals')) types.push('goals')

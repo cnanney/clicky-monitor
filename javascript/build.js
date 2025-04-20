@@ -24,7 +24,7 @@ ClickyChrome.Build.basics = async function (currentSite, currentDate) {
   const linkText = `View ${siteInfo[2]} on Clicky`
   const apiTypes =
     'visitors-online,visitors,actions,actions-average,time-total-pretty,time-average-pretty,bounce-rate,goals'
-  const apiString = `https://api.clicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&date=${currentDate}&type=${apiTypes}&output=json&app=${self.API_APP_PARAM}`
+  const apiString = `https://api.clicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&date=${currentDate}&type=${apiTypes}&output=json&app=${ClickyChrome.Const.URL_APP_PARAM}`
 
   console.log('Basics API URL:', apiString)
 
@@ -83,7 +83,7 @@ ClickyChrome.Build.visitors = async function (currentSite) {
   const siteInfo = currentSite.split(',')
   const linkURL = `https://clicky.com/stats/visitors?site_id=${siteInfo[0]}`
   const linkText = `View ${siteInfo[2]} on Clicky`
-  const apiString = `https://api.clicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&type=visitors-list&output=json&limit=5&date=today&app=${self.API_APP_PARAM}`
+  const apiString = `https://api.clicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&type=visitors-list&output=json&limit=5&date=today&app=${ClickyChrome.Const.URL_APP_PARAM}`
 
   console.log('Visitors API URL:', apiString)
 
@@ -166,7 +166,7 @@ ClickyChrome.Build.charts = async function (currentSite, currentChart) {
     linkUrl,
     linkText,
     chartTitle = ''
-  const apiBase = `https://api.clicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&output=json&app=${self.API_APP_PARAM}`
+  const apiBase = `https://api.clicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&output=json&app=${ClickyChrome.Const.URL_APP_PARAM}`
   linkText = `View ${siteInfo[2]} on Clicky`
 
   try {

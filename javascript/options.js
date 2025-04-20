@@ -145,7 +145,9 @@ function getFormData(form) {
       const password = $('#password').val()
       const apiString = `https://api.clicky.com/api/account/sites?username=${encodeURIComponent(
         username
-      )}&password=${encodeURIComponent(password)}&output=json&app=${self.API_APP_PARAM}`
+      )}&password=${encodeURIComponent(password)}&output=json&app=${
+        ClickyChrome.Const.URL_APP_PARAM
+      }`
       try {
         console.log('Import API URL:', apiString)
         const response = await fetch(apiString, { cache: 'no-store' })

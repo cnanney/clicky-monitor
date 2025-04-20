@@ -17,6 +17,9 @@
 
 var ClickyChrome = ClickyChrome || {}
 ClickyChrome.Functions = {}
+ClickyChrome.Const = {
+  URL_APP_PARAM: 'clickychrome_mv3',
+}
 
 /**
  * Returns abbreviation for numbers, e.g., 1500 -> 1.5k
