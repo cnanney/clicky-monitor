@@ -333,7 +333,7 @@ ClickyChrome.Functions.drawChart = function (d, l, t) {
   // Height of graph
   var height = 188
   // Width of graph
-  var width = 400
+  var width = 385
 
   // Increment measurements
   var X = (width - leftGutter) / labels.length
