@@ -502,16 +502,27 @@ async function checkSpy() {
     }
     console.log(`Internal spyType: ${spyType}, Mapped API badge type: ${apiBadgeType}`)
 
-    // Construct API URL
-    let apiUrl = `https://api.clicky.com/api/stats/4?site_id=${siteInfo[0]}&sitekey=${siteInfo[1]}&date=today&output=json&app=${ClickyChrome.Const.URL_APP_PARAM}`
     let types = [apiBadgeType] // Start with the type needed for the badge
     if (goalNotificationsEnabled) {
       if (!types.includes('goals')) types.push('goals')
       if (!types.includes('visitors-list')) types.push('visitors-list') // Needed for goal details
-      apiUrl += `&goal=*&time_offset=${goalTimeOffset}`
     }
     types = [...new Set(types)] // Ensure no duplicates
-    apiUrl += `&type=${types.join(',')}`
+    
+    const apiParams = {
+      site_id: siteInfo[0],
+      sitekey: siteInfo[1],
+      date: 'today',
+      output: 'json',
+      type: types.join(',')
+    }
+    
+    if (goalNotificationsEnabled) {
+      apiParams.goal = '*'
+      apiParams.time_offset = goalTimeOffset
+    }
+    
+    let apiUrl = ClickyChrome.Functions.buildApiUrl('stats', apiParams)
 
     updateTitle(siteInfo, spyType) // Update tooltip title based on internal type
     console.log('API URL:', apiUrl)

@@ -523,3 +523,39 @@ ClickyChrome.Functions.drawChart = function (d, l, t) {
   ).attr({ stroke: lineColor, 'stroke-width': lineWidth })
   r.text(leftGutter + 25, topGutter / 2, lineInfo[t].metricPlural).attr(txtLabels)
 }
+
+/**
+ * Builds Clicky API URLs with consistent base and parameters
+ *
+ * @param {string} endpoint - API endpoint ('stats' or 'account')
+ * @param {Object} params - URL parameters object
+ * @returns {string} Complete Clicky API URL
+ */
+ClickyChrome.Functions.buildApiUrl = function (endpoint, params = {}) {
+  const baseUrl = 'https://api.clicky.com/api'
+
+  let url
+  if (endpoint === 'stats') {
+    url = `${baseUrl}/stats/4`
+  } else if (endpoint === 'account') {
+    url = `${baseUrl}/account/sites`
+  } else {
+    throw new Error(`Unknown API endpoint: ${endpoint}`)
+  }
+
+  // Add app parameter by default
+  if (!params.app) {
+    params.app = ClickyChrome.Const.URL_APP_PARAM
+  }
+
+  // Build query string
+  const queryParams = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value)
+    }
+  }
+  const queryString = queryParams.toString()
+
+  return queryString ? `${url}?${queryString}` : url
+}

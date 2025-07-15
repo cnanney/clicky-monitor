@@ -143,11 +143,11 @@ function getFormData(form) {
       $('#import_error').hide().text('')
       const username = $('#username').val()
       const password = $('#password').val()
-      const apiString = `https://api.clicky.com/api/account/sites?username=${encodeURIComponent(
-        username
-      )}&password=${encodeURIComponent(password)}&output=json&app=${
-        ClickyChrome.Const.URL_APP_PARAM
-      }`
+      const apiString = ClickyChrome.Functions.buildApiUrl('account', {
+        username: username,
+        password: password,
+        output: 'json'
+      })
       try {
         console.log('Import API URL:', apiString)
         const response = await fetch(apiString, { cache: 'no-store' })
