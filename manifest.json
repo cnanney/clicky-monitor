@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Clicky Monitor v3",
+  "name": "Clicky Monitor",
   "version": "3.0.0",
-  "description": "A Google Chrome extension for Clicky Web Analytics (Manifest V3 Updated).",
+  "description": "A Google Chrome extension for Clicky Web Analytics.",
   "background": {
     "service_worker": "javascript/background.js"
   },
