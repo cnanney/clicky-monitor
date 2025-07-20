@@ -36,6 +36,7 @@ const SPY_INTERVALS_MINUTES = {
   t2: 2, // 120000ms
   t3: 5, // 300000ms
   t4: 10, // 600000ms
+  t5: null, // Complete stop - no API calls
 }
 
 // Thresholds for increasing interval (based on machine idle time)
@@ -43,7 +44,8 @@ const CHECK_THRESHOLDS_SECONDS = {
   t1: 600, // 10 mins idle -> t2 interval
   t2: 1800, // 30 mins idle -> t3 interval
   t3: 3600, // 60 mins idle -> t4 interval
-  t4: 7200, // 120 mins idle -> stay at t4 (threshold not strictly needed)
+  t4: 7200, // 120 mins idle -> t5 interval (complete stop)
+  t5: Infinity, // Stay stopped once in t5
 }
 
 const DEFAULT_INTERVAL_LEVEL = 't1'
@@ -86,7 +88,9 @@ async function updateLastActiveTimestamp() {
 // --- Initialization and Event Listeners ---
 
 chrome.runtime.onInstalled.addListener(async (details) => {
-  console.log(`[Background] Extension ${details.reason}: version ${chrome.runtime.getManifest().version}`)
+  console.log(
+    `[Background] Extension ${details.reason}: version ${chrome.runtime.getManifest().version}`
+  )
   await initializeDefaultsAndState()
   await setupContextMenu()
   // updateApiAlarm() needs to run after initializeDefaultsAndState sets the timestamp/level
@@ -105,7 +109,9 @@ chrome.runtime.onStartup.addListener(async () => {
       lastActiveTimestamp: Date.now(),
       currentIntervalLevel: 't1', // Explicitly reset level on startup
     })
-    console.log('[Background] Updated lastActiveTimestamp and reset interval level on browser startup')
+    console.log(
+      '[Background] Updated lastActiveTimestamp and reset interval level on browser startup'
+    )
   } catch (error) {
     console.error('[Background] Error setting initial state on startup:', error)
     // If this fails, the state might be inconsistent, but proceed if possible
@@ -239,7 +245,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ status: 'Sample notification triggered' })
       break
     case 'log':
-      console.log('[Background] LOG from', sender.url ? sender.url : 'popup/options', ':', message.data)
+      console.log(
+        '[Background] LOG from',
+        sender.url ? sender.url : 'popup/options',
+        ':',
+        message.data
+      )
       sendResponse({ status: 'Logged' })
       break
     default:
@@ -327,7 +338,8 @@ async function updateApiAlarm() {
 
     let newLevel = 't1'
     // Determine new level based on thresholds
-    if (idleDurationSeconds >= CHECK_THRESHOLDS_SECONDS.t3) newLevel = 't4'
+    if (idleDurationSeconds >= CHECK_THRESHOLDS_SECONDS.t4) newLevel = 't5'
+    else if (idleDurationSeconds >= CHECK_THRESHOLDS_SECONDS.t3) newLevel = 't4'
     else if (idleDurationSeconds >= CHECK_THRESHOLDS_SECONDS.t2) newLevel = 't3'
     else if (idleDurationSeconds >= CHECK_THRESHOLDS_SECONDS.t1) newLevel = 't2'
 
@@ -335,39 +347,56 @@ async function updateApiAlarm() {
 
     // Update level in storage only if it changed
     if (newLevel !== currentLevel) {
+      const levelDesc = newLevel === 't5' ? 'COMPLETE STOP' : `${newPeriodMinutes} min`
       console.log(
-        `[Background] Idle duration ${idleDurationSeconds}s. Changing interval level from ${currentLevel} to ${newLevel} (${newPeriodMinutes} min).`
+        `[Background] Idle duration ${idleDurationSeconds}s. Changing interval level from ${currentLevel} to ${newLevel} (${levelDesc}).`
       )
       currentLevel = newLevel // Use newLevel for comparison below
       await chrome.storage.local.set({ currentIntervalLevel: newLevel })
     } else {
+      const levelDesc = currentLevel === 't5' ? 'COMPLETE STOP' : `${newPeriodMinutes} min`
       console.log(
-        `[Background] Idle duration ${idleDurationSeconds}s. Keeping interval level ${currentLevel} (${newPeriodMinutes} min).`
+        `[Background] Idle duration ${idleDurationSeconds}s. Keeping interval level ${currentLevel} (${levelDesc}).`
       )
     }
 
-    // Update the Chrome alarm itself if the period differs or alarm doesn't exist
+    // Handle alarm creation/updates based on new level
     const currentAlarm = await chrome.alarms.get(ALARM_CHECK_API)
-    if (!currentAlarm || currentAlarm.periodInMinutes !== newPeriodMinutes) {
-      await chrome.alarms.create(ALARM_CHECK_API, {
-        periodInMinutes: newPeriodMinutes,
-      })
-      console.log(
-        `[Background] API Check Alarm '${ALARM_CHECK_API}' ${
-          currentAlarm ? 'updated' : 'created'
-        }. New period: ${newPeriodMinutes} minutes.`
-      )
-    } else {
-      console.log(`[Background] API Check Alarm period already set to ${newPeriodMinutes} minutes.`)
-    }
 
-    // Set IDLE badge only if actually in the longest interval state
-    if (newLevel === 't4') {
+    if (newLevel === 't5') {
+      // Complete stop: clear the alarm entirely
+      if (currentAlarm) {
+        await chrome.alarms.clear(ALARM_CHECK_API)
+        console.log(
+          `[Background] API Check Alarm '${ALARM_CHECK_API}' cleared - complete stop (t5)`
+        )
+      } else {
+        console.log(`[Background] Already in complete stop mode (t5) - no alarm to clear`)
+      }
       await chrome.action.setBadgeText({ text: 'IDLE' })
-      console.log('[Background] Setting IDLE badge.')
+      console.log('[Background] Setting IDLE badge for complete API stop.')
+    } else {
+      // Regular interval levels: create/update alarm
+      if (!currentAlarm || currentAlarm.periodInMinutes !== newPeriodMinutes) {
+        await chrome.alarms.create(ALARM_CHECK_API, {
+          periodInMinutes: newPeriodMinutes,
+        })
+        console.log(
+          `[Background] API Check Alarm '${ALARM_CHECK_API}' ${
+            currentAlarm ? 'updated' : 'created'
+          }. New period: ${newPeriodMinutes} minutes.`
+        )
+      } else {
+        console.log(
+          `[Background] API Check Alarm period already set to ${newPeriodMinutes} minutes.`
+        )
+      }
+
+      // Note: Badge setting for t1-t4 is handled in checkSpy() after successful API calls
+      // Only t5 gets IDLE badge set here since it bypasses checkSpy()
+      // NOTE: Clearing the 'IDLE' badge when *not* t5 happens inside checkSpy
+      // after a successful fetch, to ensure the badge reflects current data.
     }
-    // NOTE: Clearing the 'IDLE' badge when *not* t4 happens inside checkSpy
-    // after a successful fetch, to ensure the badge reflects current data.
   } catch (error) {
     console.error('[Background] Error updating API alarm:', error)
     // Fallback: ensure a default alarm exists
@@ -432,7 +461,7 @@ ClickyChrome.Background.showOptions = async () => {
 async function checkSpy() {
   const apiStartTime = performance.now()
   console.log('[Background] Starting API check')
-  
+
   // Check if utility functions loaded
   if (
     typeof ClickyChrome?.Functions?.setTitle !== 'function' ||
@@ -440,12 +469,13 @@ async function checkSpy() {
   ) {
     console.error('[Background] Utility functions not loaded correctly. API check aborted')
     try {
-      // Attempt to set ERR badge even if utilities fail, but only if not IDLE
+      // Attempt to set ERR badge even if utilities fail, but preserve IDLE state for t5
       const stateData = await chrome.storage.local.get('currentIntervalLevel')
-      if ((stateData.currentIntervalLevel || DEFAULT_INTERVAL_LEVEL) !== 't4') {
-        await chrome.action.setBadgeText({ text: 'ERR' })
+      const currentLevel = stateData.currentIntervalLevel || DEFAULT_INTERVAL_LEVEL
+      if (currentLevel === 't5') {
+        await chrome.action.setBadgeText({ text: 'IDLE' }) // Maintain IDLE if t5 (complete stop)
       } else {
-        await chrome.action.setBadgeText({ text: 'IDLE' }) // Maintain IDLE if t4
+        await chrome.action.setBadgeText({ text: 'ERR' })
       }
     } catch (e) {
       console.error('[Background] Failed to set error/idle badge during utility check failure:', e)
@@ -469,11 +499,11 @@ async function checkSpy() {
     if (!settings.clickychrome_currentSite) {
       console.log('[Background] No current site selected')
       ClickyChrome.Functions.setTitle('ClickyChrome - No Site Selected')
-      // Clear badge only if not in the deep idle state ('t4')
-      if (currentLevel !== 't4') {
-        ClickyChrome.Functions.setBadgeText('')
+      // Clear badge only if not in complete stop state (t5)
+      if (currentLevel === 't5') {
+        await chrome.action.setBadgeText({ text: 'IDLE' }) // Maintain IDLE if t5 (complete stop)
       } else {
-        await chrome.action.setBadgeText({ text: 'IDLE' }) // Maintain IDLE if t4
+        ClickyChrome.Functions.setBadgeText('')
       }
       return // Exit early
     }
@@ -515,20 +545,20 @@ async function checkSpy() {
       if (!types.includes('visitors-list')) types.push('visitors-list') // Needed for goal details
     }
     types = [...new Set(types)] // Ensure no duplicates
-    
+
     const apiParams = {
       site_id: siteInfo[0],
       sitekey: siteInfo[1],
       date: 'today',
       output: 'json',
-      type: types.join(',')
+      type: types.join(','),
     }
-    
+
     if (goalNotificationsEnabled) {
       apiParams.goal = '*'
       apiParams.time_offset = goalTimeOffset
     }
-    
+
     let apiUrl = ClickyChrome.Functions.buildApiUrl('stats', apiParams)
 
     updateTitle(siteInfo, spyType) // Update tooltip title based on internal type
@@ -543,7 +573,10 @@ async function checkSpy() {
       throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`)
     }
     const data = await response.json()
-    console.log('[Background] API Response (Snippet):', JSON.stringify(data).substring(0, 500) + '...')
+    console.log(
+      '[Background] API Response (Snippet):',
+      JSON.stringify(data).substring(0, 500) + '...'
+    )
 
     // Process Response
     if (data && Array.isArray(data) && data.length > 0) {
@@ -559,11 +592,11 @@ async function checkSpy() {
       if (apiError) {
         console.error('[Background] Clicky API Error:', apiError)
         ClickyChrome.Functions.setTitle(`Error: ${apiError}`)
-        // Set ERR badge only if not in deep idle state (t4)
-        if (currentLevel !== 't4') {
-          ClickyChrome.Functions.setBadgeText('ERR')
+        // Set ERR badge only if not in complete stop state (t5)
+        if (currentLevel === 't5') {
+          await chrome.action.setBadgeText({ text: 'IDLE' }) // Maintain IDLE if t5 (complete stop)
         } else {
-          await chrome.action.setBadgeText({ text: 'IDLE' }) // Maintain IDLE if t4
+          ClickyChrome.Functions.setBadgeText('ERR')
         }
       } else {
         // --- Successful API Response (No General API Error) ---
@@ -587,26 +620,27 @@ async function checkSpy() {
         const currentCheckLevel = levelData.currentIntervalLevel || DEFAULT_INTERVAL_LEVEL
 
         if (badgeValue !== undefined) {
-          if (currentCheckLevel !== 't4') {
-            ClickyChrome.Functions.setBadgeNum(badgeValue) // Update badge with number
-            console.log(`[Background] Badge updated for ${spyType} (${apiBadgeType}):`, badgeValue)
-          } else {
-            // Explicitly maintain IDLE badge if in t4 state
+          if (currentCheckLevel === 't5') {
+            // Explicitly maintain IDLE badge if in t5 state (complete stop)
             console.log(
-              `[Background] Deep idle state (t4), preserving 'IDLE' badge instead of setting ${badgeValue}`
+              `[Background] Complete stop state (t5), preserving 'IDLE' badge instead of setting ${badgeValue}`
             )
             await chrome.action.setBadgeText({ text: 'IDLE' })
+          } else {
+            // For t1-t4, show the actual metric value
+            ClickyChrome.Functions.setBadgeNum(badgeValue) // Update badge with number
+            console.log(`[Background] Badge updated for ${spyType} (${apiBadgeType}):`, badgeValue)
           }
         } else {
           // Badge value couldn't be found in the response
           console.warn(
             `[Background] Could not find value for badge type '${apiBadgeType}' (mapped from '${spyType}') in API response`
           )
-          // Set '?' badge only if not in deep idle state (t4)
-          if (currentCheckLevel !== 't4') {
-            ClickyChrome.Functions.setBadgeText('?')
+          // Set '?' badge only if not in complete stop state (t5)
+          if (currentCheckLevel === 't5') {
+            await chrome.action.setBadgeText({ text: 'IDLE' }) // Maintain IDLE if t5 (complete stop)
           } else {
-            await chrome.action.setBadgeText({ text: 'IDLE' }) // Maintain IDLE if t4
+            ClickyChrome.Functions.setBadgeText('?')
           }
         }
         // Process Notifications
@@ -614,10 +648,15 @@ async function checkSpy() {
           let goalVisitorData = data.find((item) => item.type === 'visitors-list')
           let goalItems = goalVisitorData?.dates?.[0]?.items
           if (goalItems && goalItems.length > 0) {
-            console.log('[Background] Goal visitor data found for potential notification:', goalItems.length)
+            console.log(
+              '[Background] Goal visitor data found for potential notification:',
+              goalItems.length
+            )
             await processAndCreateNotifications(goalItems)
           } else {
-            console.log('[Background] Goal notifications enabled, but no goal visitor list data found')
+            console.log(
+              '[Background] Goal notifications enabled, but no goal visitor list data found'
+            )
           }
         }
         // --- Successful processing complete ---
@@ -627,11 +666,11 @@ async function checkSpy() {
     } else {
       // Received empty or invalid data from Clicky API
       console.warn('[Background] Received empty or invalid data from Clicky API')
-      // Set '?' badge only if not in deep idle state (t4)
-      if (currentLevel !== 't4') {
-        ClickyChrome.Functions.setBadgeText('?')
+      // Set '?' badge only if not in complete stop state (t5)
+      if (currentLevel === 't5') {
+        await chrome.action.setBadgeText({ text: 'IDLE' }) // Maintain IDLE if t5 (complete stop)
       } else {
-        await chrome.action.setBadgeText({ text: 'IDLE' }) // Maintain IDLE if t4
+        ClickyChrome.Functions.setBadgeText('?')
       }
     }
   } catch (error) {
@@ -639,14 +678,14 @@ async function checkSpy() {
     const apiDuration = performance.now() - apiStartTime
     console.error(`[Background] Error in checkSpy after ${apiDuration.toFixed(2)}ms:`, error)
     ClickyChrome.Functions.setTitle('Clicky Monitor - API Error')
-    // Set ERR badge only if not in deep idle state (t4)
+    // Set ERR badge only if not in complete stop state (t5)
     // Re-read level just in case, though using the level from start is okay
     try {
       const stateData = await chrome.storage.local.get('currentIntervalLevel')
-      if ((stateData.currentIntervalLevel || DEFAULT_INTERVAL_LEVEL) !== 't4') {
-        ClickyChrome.Functions.setBadgeText('ERR')
+      if ((stateData.currentIntervalLevel || DEFAULT_INTERVAL_LEVEL) === 't5') {
+        await chrome.action.setBadgeText({ text: 'IDLE' }) // Maintain IDLE if t5 (complete stop)
       } else {
-        await chrome.action.setBadgeText({ text: 'IDLE' }) // Maintain IDLE if t4
+        ClickyChrome.Functions.setBadgeText('ERR')
       }
     } catch (levelError) {
       console.error('[Background] Failed to read level during error handling:', levelError)
@@ -728,7 +767,10 @@ async function processAndCreateNotifications(apiGoalItems) {
       // Create notification and handle potential errors
       chrome.notifications.create(notificationId, notificationOptions, (createdId) => {
         if (chrome.runtime.lastError) {
-          console.error('[Background] Error creating notification:', chrome.runtime.lastError.message)
+          console.error(
+            '[Background] Error creating notification:',
+            chrome.runtime.lastError.message
+          )
         } else {
           console.log('[Background] Notification created:', createdId)
           // Store associated URL for click handling
@@ -787,7 +829,10 @@ function createSampleNotification() {
   }
   chrome.notifications.create(notificationId, notificationOptions, (id) => {
     if (chrome.runtime.lastError) {
-      console.error('[Background] Error creating sample notification:', chrome.runtime.lastError.message)
+      console.error(
+        '[Background] Error creating sample notification:',
+        chrome.runtime.lastError.message
+      )
     } else {
       console.log('[Background] Sample notification created:', id)
     }
@@ -845,7 +890,10 @@ async function setupContextMenu() {
     } catch (removeError) {
       // Ignore error if menu ID doesn't exist (e.g., after browser restart or first install)
       if (!removeError.message.includes('No item with id')) {
-        console.log('[Background] Context menu removal error (may be harmless):', removeError.message)
+        console.log(
+          '[Background] Context menu removal error (may be harmless):',
+          removeError.message
+        )
       }
     }
 
