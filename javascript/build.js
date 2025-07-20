@@ -9,7 +9,7 @@ ClickyChrome.Build = {}
 // --- Build Functions ---
 
 ClickyChrome.Build.basics = async function (currentSite, currentDate) {
-  console.log(`Build basics: site=${currentSite}, date=${currentDate}`)
+  console.log(`[Build] Building basics page: site=${currentSite}, date=${currentDate}`)
 
   if (!currentSite) {
     ClickyChrome.Popup.loadHtml('<p>Error: No site selected for basics.</p>')
@@ -32,13 +32,16 @@ ClickyChrome.Build.basics = async function (currentSite, currentDate) {
     output: 'json'
   })
 
-  console.log('Basics API URL:', apiString)
+  console.log('[Build] Basics API URL:', apiString)
 
   try {
+    const fetchStartTime = performance.now()
     const response = await fetch(apiString, { cache: 'no-store' })
+    const fetchDuration = performance.now() - fetchStartTime
+    console.log(`[Build] Basics API fetch completed in ${fetchDuration.toFixed(2)}ms`)
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
     const data = await response.json()
-    console.log('Basics API Response (Snippet):', JSON.stringify(data).substring(0, 500) + '...')
+    console.log('[Build] Basics API Response (Snippet):', JSON.stringify(data).substring(0, 500) + '...')
 
     if (data && Array.isArray(data) && data.length > 0) {
       let html = ''
@@ -47,7 +50,7 @@ ClickyChrome.Build.basics = async function (currentSite, currentDate) {
       if (apiError) {
         html = `<p id="no_site">${apiError}</p>`
         ClickyChrome.Functions.setBadgeText('ERR') // Use utility function
-        console.error('Clicky API Error (Basics):', apiError)
+        console.error('[Build] Clicky API Error (Basics):', apiError)
       } else {
         if (typeof ClickyChrome?.Process?.basics !== 'function') {
           throw new Error('ClickyChrome.Process.basics function not found.')
@@ -68,19 +71,19 @@ ClickyChrome.Build.basics = async function (currentSite, currentDate) {
                 </table>
                 <p id="link_to_clicky"><a class="external" href="${linkURLBase}&date=${currentDate}">${linkText}</a></p>`
       }
-      console.log('Basics HTML built.')
+      console.log('[Build] Basics HTML content built')
       ClickyChrome.Popup.loadHtml(html)
     } else {
       throw new Error('Invalid or empty data received from Basics API.')
     }
   } catch (error) {
-    console.error('Error fetching or processing basics data:', error)
+    console.error('[Build] Error fetching or processing basics data:', error)
     ClickyChrome.Popup.loadHtml('<p id="no_site">Error loading basic stats. Please try again.</p>')
   }
 }
 
 ClickyChrome.Build.visitors = async function (currentSite) {
-  console.log(`Build visitors: site=${currentSite}`)
+  console.log(`[Build] Building visitors page: site=${currentSite}`)
   if (!currentSite) {
     ClickyChrome.Popup.loadHtml('<p>Error: No site selected for visitors.</p>')
     return
@@ -98,13 +101,16 @@ ClickyChrome.Build.visitors = async function (currentSite) {
     date: 'today'
   })
 
-  console.log('Visitors API URL:', apiString)
+  console.log('[Build] Visitors API URL:', apiString)
 
   try {
+    const fetchStartTime = performance.now()
     const response = await fetch(apiString, { cache: 'no-store' })
+    const fetchDuration = performance.now() - fetchStartTime
+    console.log(`[Build] Visitors API fetch completed in ${fetchDuration.toFixed(2)}ms`)
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
     const data = await response.json()
-    console.log('Visitors API Response (Snippet):', JSON.stringify(data).substring(0, 500) + '...')
+    console.log('[Build] Visitors API Response (Snippet):', JSON.stringify(data).substring(0, 500) + '...')
 
     if (data && Array.isArray(data) && data.length > 0) {
       let html = ''
@@ -112,7 +118,7 @@ ClickyChrome.Build.visitors = async function (currentSite) {
 
       if (apiError) {
         html = `<p id="no_site">${apiError}</p>`
-        console.error('Clicky API Error (Visitors):', apiError)
+        console.error('[Build] Clicky API Error (Visitors):', apiError)
       } else {
         const items = data[0]?.dates?.[0]?.items
         if (typeof ClickyChrome?.Process?.visitors !== 'function') {
@@ -156,19 +162,19 @@ ClickyChrome.Build.visitors = async function (currentSite) {
         }
         html += `<p id="link_to_clicky"><a class="external" href="${linkURL}">${linkText}</a></p>`
       }
-      console.log('Visitors HTML built.')
+      console.log('[Build] Visitors HTML content built')
       ClickyChrome.Popup.loadHtml(html)
     } else {
       throw new Error('Invalid or empty data received from Visitors API.')
     }
   } catch (error) {
-    console.error('Error fetching or processing visitors data:', error)
+    console.error('[Build] Error fetching or processing visitors data:', error)
     ClickyChrome.Popup.loadHtml('<p id="no_site">Error loading visitor list. Please try again.</p>')
   }
 }
 
 ClickyChrome.Build.charts = async function (currentSite, currentChart) {
-  console.log(`Build charts: site=${currentSite}, chart=${currentChart}`)
+  console.log(`[Build] Building charts page: site=${currentSite}, chart=${currentChart}`)
   if (!currentSite) {
     ClickyChrome.Popup.loadHtml('<p>Error: No site selected for charts.</p>')
     return
@@ -192,12 +198,15 @@ ClickyChrome.Build.charts = async function (currentSite, currentChart) {
       chartTitle = 'Top Browsers, Last 30 Days'
       linkUrl = `https://clicky.com/stats/platforms?site_id=${siteInfo[0]}`
       apiString = `${apiBase}&type=web-browsers&date=last-30-days&limit=11`
-      console.log('Browser Chart API URL:', apiString)
+      console.log('[Build] Browser Chart API URL:', apiString)
+      const fetchStartTime = performance.now()
       const response = await fetch(apiString, { cache: 'no-store' })
+      const fetchDuration = performance.now() - fetchStartTime
+      console.log(`[Build] Browser Chart API fetch completed in ${fetchDuration.toFixed(2)}ms`)
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
       responseData = await response.json()
       console.log(
-        'Browser Chart API Response (Snippet):',
+        '[Build] Browser Chart API Response (Snippet):',
         JSON.stringify(responseData).substring(0, 500) + '...'
       )
 
@@ -231,7 +240,7 @@ ClickyChrome.Build.charts = async function (currentSite, currentChart) {
           const chartHtml = `<div id="chart_area"><h3>${chartTitle}</h3><div id="chart"></div><p id="link_to_clicky"><a class="external" href="${linkUrl}">${linkText}</a></p></div>`
           ClickyChrome.Popup.loadHtml(chartHtml)
           ClickyChrome.Functions.drawPie(tmpData, tmpLabels, tmpStatURLs)
-          console.log('Pie chart loaded')
+          console.log('[Build] Pie chart rendered successfully')
         } else {
           ClickyChrome.Popup.loadHtml('<p>No browser data available for the last 30 days.</p>')
         }
@@ -246,12 +255,15 @@ ClickyChrome.Build.charts = async function (currentSite, currentChart) {
         currentChart === 'actions' ? 'visitors-actions' : currentChart
       }?site_id=${siteInfo[0]}`
       apiString = `${apiBase}&type=${currentChart}&date=previous-30-days&daily=1`
-      console.log('Line Chart API URL:', apiString)
+      console.log('[Build] Line Chart API URL:', apiString)
+      const fetchStartTime = performance.now()
       const response = await fetch(apiString, { cache: 'no-store' })
+      const fetchDuration = performance.now() - fetchStartTime
+      console.log(`[Build] Line Chart API fetch completed in ${fetchDuration.toFixed(2)}ms`)
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
       responseData = await response.json()
       console.log(
-        'Line Chart API Response (Snippet):',
+        '[Build] Line Chart API Response (Snippet):',
         JSON.stringify(responseData).substring(0, 500) + '...'
       )
 
@@ -272,7 +284,7 @@ ClickyChrome.Build.charts = async function (currentSite, currentChart) {
           const chartHtml = `<div id="chart_area"><h3>${chartTitle}</h3><div id="chart"></div><p id="link_to_clicky"><a class="external" href="${linkUrl}">${linkText}</a></p></div>`
           ClickyChrome.Popup.loadHtml(chartHtml)
           ClickyChrome.Functions.drawChart(tmpData.join(','), tmpLabels.join(','), currentChart)
-          console.log('Line graph loaded')
+          console.log('[Build] Line chart rendered successfully')
         } else {
           ClickyChrome.Popup.loadHtml(
             `<p>No ${currentChart} data available for the previous 30 days.</p>`
@@ -285,7 +297,7 @@ ClickyChrome.Build.charts = async function (currentSite, currentChart) {
       throw new Error(`Unknown chart type requested: ${currentChart}`)
     }
   } catch (error) {
-    console.error(`Error fetching or processing chart data (${currentChart}):`, error)
+    console.error(`[Build] Error fetching or processing chart data (${currentChart}):`, error)
     ClickyChrome.Popup.loadHtml(
       `<p id="no_site">Error loading chart data: ${error.message}. Please try again.</p>`
     )

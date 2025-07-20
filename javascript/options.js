@@ -21,7 +21,7 @@ function getFormData(form) {
 }
 
 ;(async () => {
-  console.log('Options script loaded.')
+  console.log('[Options] Script loaded')
 
   $(async function () {
     // --- Event Listeners ---
@@ -52,9 +52,9 @@ function getFormData(form) {
       $('#options_help, #context_help').colorbox({
         title: false,
       })
-      console.log('Colorbox initialized for help links.')
+      console.log('[Options] Colorbox initialized for help links')
     } else {
-      console.warn('Colorbox not found, help links will open normally.')
+      console.warn('[Options] Colorbox not found, help links will open normally')
       $('#options_help, #context_help').on('click', function (e) {
         e.preventDefault()
         window.open($(this).attr('href'), '_blank')
@@ -70,16 +70,16 @@ function getFormData(form) {
     })
     $(document).on('click', '#sample_notification', function (e) {
       e.preventDefault()
-      console.log('Sample notification link clicked.')
+      console.log('[Options] Sample notification link clicked')
       // Send message to background script to trigger the sample
       chrome.runtime.sendMessage({ action: 'createSampleNotification' }, (response) => {
         if (chrome.runtime.lastError) {
           console.error(
-            'Error sending message for sample notification:',
+            '[Options] Error sending message for sample notification:',
             chrome.runtime.lastError.message
           )
         } else {
-          console.log('Message sent for sample notification, response:', response?.status)
+          console.log('[Options] Message sent for sample notification, response:', response?.status)
         }
       })
     })
@@ -149,7 +149,7 @@ function getFormData(form) {
         output: 'json'
       })
       try {
-        console.log('Import API URL:', apiString)
+        console.log('[Options] Import API URL:', apiString)
         const response = await fetch(apiString, { cache: 'no-store' })
         let errorText = `HTTP error! status: ${response.status}`
         if (!response.ok) {
@@ -161,7 +161,7 @@ function getFormData(form) {
         }
         const data = await response.json()
         console.log(
-          'Import API Response (Snippet):',
+          '[Options] Import API Response (Snippet):',
           JSON.stringify(data).substring(0, 500) + '...'
         )
         if (data && Array.isArray(data)) {
@@ -179,7 +179,7 @@ function getFormData(form) {
           throw new Error('Received invalid data from import API.')
         }
       } catch (error) {
-        console.error('Import Error:', error)
+        console.error('[Options] Import Error:', error)
         $('#import_error').show().text(`Import failed: ${error.message}`)
       } finally {
         $('#import_loader').hide()
@@ -204,9 +204,9 @@ function getFormData(form) {
         tolerance: 'pointer',
         items: '> tr:not(#reminder)',
       })
-      console.log('jQuery UI Sortable initialized.')
+      console.log('[Options] jQuery UI Sortable initialized')
     } else {
-      console.warn('jQuery UI Sortable not found. Table reordering disabled.')
+      console.warn('[Options] jQuery UI Sortable not found. Table reordering disabled')
       $('img.grip').hide()
     }
 
@@ -215,7 +215,7 @@ function getFormData(form) {
 })() // End async IIFE
 
 ClickyChrome.Options.init = async function () {
-  console.log('Options init started.')
+  console.log('[Options] Initialization started')
   try {
     const data = await chrome.storage.local.get([
       'clickychrome_names',
@@ -228,7 +228,7 @@ ClickyChrome.Options.init = async function () {
       'clickychrome_goalNotification',
       'clickychrome_goalTimeout',
     ])
-    console.log('Loaded data from storage:', data)
+    console.log('[Options] Loaded data from storage:', data)
 
     const nameArray = data.clickychrome_names ? data.clickychrome_names.split(',') : []
     const urlArray = data.clickychrome_urls ? data.clickychrome_urls.split(',') : []
@@ -250,11 +250,11 @@ ClickyChrome.Options.init = async function () {
           isValid = true
       }
       if (!isValid) {
-        console.log('Current site invalid, resetting.')
+        console.log('[Options] Current site invalid, resetting')
         currentSite = await this.resetCurrent(idArray, keyArray, nameArray)
       }
     } else if (idArray.length > 0) {
-      console.log('No current site set, resetting.')
+      console.log('[Options] No current site set, resetting')
       currentSite = await this.resetCurrent(idArray, keyArray, nameArray)
     }
 
@@ -275,12 +275,12 @@ ClickyChrome.Options.init = async function () {
     $('#username, #password').val('')
     $('#save_feedback').hide()
   } catch (error) {
-    console.error('Error initializing options:', error)
+    console.error('[Options] Error initializing options:', error)
   }
 }
 
 ClickyChrome.Options.saveData = async function (data) {
-  console.log('Saving data:', data)
+  console.log('[Options] Saving data:', data)
   const storageData = {
     clickychrome_names: data.name.join(','),
     clickychrome_urls: data.url.join(','),
@@ -307,10 +307,10 @@ ClickyChrome.Options.saveData = async function (data) {
     }
     if (!siteStillExists && data.id.length > 0) {
       storageData.clickychrome_currentSite = `${data.id[0]},${data.key[0]},${data.name[0]}`
-      console.log('Current site reset to first:', storageData.clickychrome_currentSite)
+      console.log('[Options] Current site reset to first:', storageData.clickychrome_currentSite)
     } else if (data.id.length === 0) {
       storageData.clickychrome_currentSite = ''
-      console.log('All sites removed, clearing current site.')
+      console.log('[Options] All sites removed, clearing current site')
     } else if (currentSite && siteStillExists) {
       storageData.clickychrome_currentSite = currentSite
     }
@@ -318,15 +318,15 @@ ClickyChrome.Options.saveData = async function (data) {
     await chrome.storage.local.set(storageData)
     await this.init() // Re-initialize UI
     $('#save_feedback').text('Options saved.').removeClass('error').show().delay(3000).fadeOut(500)
-    console.log('Options saved successfully.')
+    console.log('[Options] Options saved successfully')
   } catch (error) {
-    console.error('Error saving options:', error)
+    console.error('[Options] Error saving options:', error)
     $('#save_feedback').text('Error saving options!').addClass('error').show()
   }
 }
 
 ClickyChrome.Options.saveImported = async function (data) {
-  console.log('Saving imported data:', data)
+  console.log('[Options] Saving imported data:', data)
   const storageData = {
     clickychrome_names: data.name.join(','),
     clickychrome_urls: data.url.join(','),
@@ -341,25 +341,25 @@ ClickyChrome.Options.saveImported = async function (data) {
   try {
     await chrome.storage.local.set(storageData)
     await this.init() // Re-initialize page
-    console.log('Imported data saved successfully.')
+    console.log('[Options] Imported data saved successfully')
     alert('Sites imported successfully!')
   } catch (error) {
-    console.error('Error saving imported data:', error)
+    console.error('[Options] Error saving imported data:', error)
     alert('Error saving imported data.')
   }
 }
 
 ClickyChrome.Options.wipeData = async function () {
-  console.log('Wiping all extension data...')
+  console.log('[Options] Wiping all extension data')
   try {
     await chrome.storage.local.clear()
-    console.log('Local storage cleared.')
+    console.log('[Options] Local storage cleared')
     chrome.tabs.getCurrent((tab) => {
       if (tab && tab.id) chrome.tabs.remove(tab.id)
       else alert('Data wiped. Please close this tab.')
     })
   } catch (error) {
-    console.error('Error wiping data:', error)
+    console.error('[Options] Error wiping data:', error)
     alert('Error wiping data.')
   }
 }
@@ -398,7 +398,7 @@ ClickyChrome.Options.buildSiteTable = async function (nameArray, urlArray, idArr
   }
   if (!$.fn.sortable) $('img.grip').hide() // Hide grips if sortable missing
   this.checkSites()
-  console.log('Site table built.')
+  console.log('[Options] Site table built with', nameArray.length, 'sites')
 }
 
 ClickyChrome.Options.checkSites = function () {
@@ -419,16 +419,16 @@ ClickyChrome.Options.resetCurrent = async function (idArray, keyArray, nameArray
     newCurrentSite = `${idArray[0]},${keyArray[0]},${nameArray[0]}`
     try {
       await chrome.storage.local.set({ clickychrome_currentSite: newCurrentSite })
-      console.log('Current site reset to:', newCurrentSite)
+      console.log('[Options] Current site reset to:', newCurrentSite)
     } catch (error) {
-      console.error('Error saving reset current site:', error)
+      console.error('[Options] Error saving reset current site:', error)
     }
   } else {
     try {
       await chrome.storage.local.remove('clickychrome_currentSite')
-      console.log('Current site cleared as no sites available.')
+      console.log('[Options] Current site cleared as no sites available')
     } catch (error) {
-      console.error('Error removing current site during reset:', error)
+      console.error('[Options] Error removing current site during reset:', error)
     }
   }
   return newCurrentSite

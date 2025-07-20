@@ -7,7 +7,7 @@
 ClickyChrome.Popup = {}
 
 $(async function () {
-  console.log('Popup script loaded.')
+  console.log('[Popup] Script loaded and DOM ready')
 
   // --- Event Listeners ---
   $('#site-list').on('click', 'a', async function (e) {
@@ -71,9 +71,11 @@ $(async function () {
   })
 
   // Trigger background check on popup open
+  console.log('[Popup] User opened popup - triggering API check')
   chrome.runtime.sendMessage({ action: 'triggerApiCheck' })
 
   // Initialize the popup
+  console.log('[Popup] Starting initialization')
   await ClickyChrome.Popup.init()
 })
 
@@ -89,7 +91,7 @@ ClickyChrome.Popup.vars = {
 }
 
 ClickyChrome.Popup.init = async function () {
-  console.log('Popup init started.')
+  console.log('[Popup] Initialization started')
   try {
     const data = await chrome.storage.local.get([
       'clickychrome_names',
@@ -107,7 +109,7 @@ ClickyChrome.Popup.init = async function () {
       $('#main_tabs').hide()
       $('#dropdowns').hide()
       $('#content').html(html)
-      console.log('No sites configured.')
+      console.log('[Popup] No sites configured - showing setup message')
       return
     }
 
@@ -137,7 +139,7 @@ ClickyChrome.Popup.init = async function () {
     if (!isValidCurrentSite && nameArray.length > 0) {
       currentSite = `${idArray[0]},${keyArray[0]},${nameArray[0]}`
       await chrome.storage.local.set({ clickychrome_currentSite: currentSite })
-      console.log('Setting default current site:', currentSite)
+      console.log('[Popup] Setting default current site:', currentSite)
     }
 
     await this.buildMenus(nameArray, idArray, keyArray, currentSite)
@@ -146,7 +148,7 @@ ClickyChrome.Popup.init = async function () {
     this.updateTabAndControls(this.vars.currentPage)
     await this.buildPage(this.vars.currentPage)
   } catch (error) {
-    console.error('Error during popup initialization:', error)
+    console.error('[Popup] Error during initialization:', error)
     this.hideLoader()
     $('#content').html('<p id="no_site">An error occurred loading extension data.</p>')
   }
@@ -166,7 +168,7 @@ ClickyChrome.Popup.buildMenus = async function (nameArray, idArray, keyArray, cu
     }</a></li>`
     $('#site-list').append(string)
   }
-  console.log('Site menu built.')
+  console.log('[Popup] Site menu built with', idArray.length, 'sites')
 
   const currentDate = await this.getCurrentDate()
   const currentChart = await this.getCurrentChart()
@@ -190,7 +192,7 @@ ClickyChrome.Popup.showMenuButtons = function () {
 }
 
 ClickyChrome.Popup.buildPage = async function (page) {
-  console.log(`Begin "${page}" page build`)
+  console.log(`[Popup] Building "${page}" page`)
   this.showLoader()
   try {
     // Get common data needed by build functions
@@ -231,7 +233,7 @@ ClickyChrome.Popup.buildPage = async function (page) {
         return // Exit if page type is unknown
     }
   } catch (error) {
-    console.error(`Error building page "${page}":`, error)
+    console.error(`[Popup] Error building page "${page}":`, error)
     this.loadHtml(`<p>Error loading content for ${page}: ${error.message}.</p>`) // Show more specific error
   }
   // Hiding loader is handled by loadHtml or within the Build functions if needed
@@ -240,12 +242,12 @@ ClickyChrome.Popup.buildPage = async function (page) {
 ClickyChrome.Popup.loadHtml = function (html) {
   if (html !== false && typeof html === 'string') {
     $('#content').html(html)
-    console.log('HTML loaded into #content')
+    console.log('[Popup] HTML content loaded into #content')
   } else if (html === false) {
-    console.warn('loadHtml called with false, indicating potential error upstream.')
+    console.warn('[Popup] loadHtml called with false, indicating potential error upstream')
     $('#content').html('<p>Failed to load content.</p>')
   } else {
-    console.warn('loadHtml called with invalid content:', html)
+    console.warn('[Popup] loadHtml called with invalid content:', html)
     $('#content').html('<p>Invalid content received.</p>')
   }
   this.hideLoader()
@@ -255,9 +257,9 @@ ClickyChrome.Popup.externalLink = function (link) {
   const windowUrl = link.attr('href')
   if (windowUrl) {
     chrome.tabs.create({ url: windowUrl, selected: true })
-    console.log('Opening external link:', windowUrl)
+    console.log('[Popup] Opening external link:', windowUrl)
   } else {
-    console.warn('Attempted to open link with no href:', link)
+    console.warn('[Popup] Attempted to open link with no href:', link)
   }
 }
 
@@ -296,7 +298,7 @@ ClickyChrome.Popup.updateTabAndControls = function (page) {
       this.setDateName('last-30-days')
       break
   }
-  console.log(`UI controls updated for page: ${page}`)
+  console.log(`[Popup] UI controls updated for page: ${page}`)
 }
 
 ClickyChrome.Popup.siteSelect = async function (siteLink) {
@@ -304,7 +306,7 @@ ClickyChrome.Popup.siteSelect = async function (siteLink) {
   const text = siteLink.text()
   const id = siteLink.attr('id')
   if (!id) {
-    console.error('Selected site link has no ID attribute.')
+    console.error('[Popup] Selected site link has no ID attribute')
     return
   }
   $('#site-select span').text(text)
@@ -312,10 +314,10 @@ ClickyChrome.Popup.siteSelect = async function (siteLink) {
   siteLink.addClass('current')
   try {
     await chrome.storage.local.set({ clickychrome_currentSite: id })
-    console.log('Current site saved:', id)
+    console.log('[Popup] Current site saved:', id)
     await this.buildPage(this.vars.currentPage)
   } catch (error) {
-    console.error('Error saving current site:', error)
+    console.error('[Popup] Error saving current site:', error)
   }
 }
 
@@ -328,10 +330,10 @@ ClickyChrome.Popup.dateSelect = async function (dateLink) {
   dateLink.addClass('current')
   try {
     await chrome.storage.local.set({ clickychrome_currentDate: id })
-    console.log('Current date saved:', id)
+    console.log('[Popup] Current date saved:', id)
     await this.buildPage(this.vars.currentPage)
   } catch (error) {
-    console.error('Error saving current date:', error)
+    console.error('[Popup] Error saving current date:', error)
   }
 }
 
@@ -344,10 +346,10 @@ ClickyChrome.Popup.chartSelect = async function (chartLink) {
   chartLink.addClass('current')
   try {
     await chrome.storage.local.set({ clickychrome_currentChart: id })
-    console.log('Current chart saved:', id)
+    console.log('[Popup] Current chart saved:', id)
     await this.buildPage(this.vars.currentPage)
   } catch (error) {
-    console.error('Error saving current chart:', error)
+    console.error('[Popup] Error saving current chart:', error)
   }
 }
 

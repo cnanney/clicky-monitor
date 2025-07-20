@@ -14,7 +14,7 @@ ClickyChrome.Process = {}
  * @returns {object} - Processed info object.
  */
 ClickyChrome.Process.basics = function (data) {
-  console.log('Processing basics data...') // Always log
+  console.log('[Process] Processing basics data') // Always log
   const findValue = (type) => {
     const item = data.find((d) => d.type === type)
     const value = item?.dates?.[0]?.items?.[0]?.value
@@ -41,7 +41,7 @@ ClickyChrome.Process.basics = function (data) {
     bounce: findValue('bounce-rate') ?? 'N/A',
     goals: ClickyChrome.Functions.addCommas(findGoalSum()),
   }
-  console.log('Processed basics info:', info) // Always log
+  console.log('[Process] Processed basics info:', info) // Always log
   return info
 }
 
@@ -53,10 +53,10 @@ ClickyChrome.Process.basics = function (data) {
  * @returns {array} - Processed visitor info array.
  */
 ClickyChrome.Process.visitors = function (items, siteInfo) {
-  console.log('Processing visitors list data...') // Always log
+  console.log('[Process] Processing visitors list data') // Always log
   if (!items || !Array.isArray(items)) return []
   if (!siteInfo || siteInfo.length < 1) {
-    console.error('Site Info not provided to Process.visitors for link generation.')
+    console.error('[Process] Site Info not provided to Process.visitors for link generation')
     return []
   }
   const siteId = siteInfo[0]
@@ -112,7 +112,7 @@ ClickyChrome.Process.visitors = function (items, siteInfo) {
     }
     return visitor
   })
-  console.log('Processed visitors list info:', processedVisitors) // Always log
+  console.log('[Process] Processed visitors list info:', processedVisitors) // Always log
   return processedVisitors
 }
 
@@ -125,7 +125,7 @@ ClickyChrome.Process.visitors = function (items, siteInfo) {
  * @returns {object} - An object containing { newGoals: {...}, updatedLog: {...} }
  */
 ClickyChrome.Process.goals = function (apiGoalItems, currentLog) {
-  console.log('Processing goal data for notifications...') // Always log
+  console.log('[Process] Processing goal data for notifications') // Always log
   const newGoalsForNotification = {}
   const updatedLog = { ...currentLog } // Create a copy to modify
 
@@ -137,21 +137,21 @@ ClickyChrome.Process.goals = function (apiGoalItems, currentLog) {
     if (!item.goals?.completed || item.goals.completed.length === 0) return
     const sessionId = item.session_id
     if (!sessionId) {
-      console.warn('Goal item missing session_id:', item)
+      console.warn('[Process] Goal item missing session_id:', item)
       return
     }
 
     const goalNames = item.goals.completed.join(', ')
     const timestamp = parseInt(item.time, 10)
     if (isNaN(timestamp)) {
-      console.warn('Goal item missing valid time:', item)
+      console.warn('[Process] Goal item missing valid time:', item)
       return
     }
 
     if (updatedLog.hasOwnProperty(sessionId)) {
       if (updatedLog[sessionId].goals !== goalNames) {
         console.log(
-          `Goal list changed for session ${sessionId}: "${updatedLog[sessionId].goals}" -> "${goalNames}"`
+          `[Process] Goal list changed for session ${sessionId}: "${updatedLog[sessionId].goals}" -> "${goalNames}"`
         ) // Always log
         updatedLog[sessionId].goals = goalNames
         updatedLog[sessionId].timestamp = timestamp
@@ -170,10 +170,10 @@ ClickyChrome.Process.goals = function (apiGoalItems, currentLog) {
         }
       } else {
         if (timestamp > updatedLog[sessionId].timestamp) updatedLog[sessionId].timestamp = timestamp
-        console.log(`Session ${sessionId} already logged with same goals, skipping notification.`) // Always log
+        console.log(`[Process] Session ${sessionId} already logged with same goals, skipping notification`) // Always log
       }
     } else {
-      console.log(`New goal session found: ${sessionId}`) // Always log
+      console.log(`[Process] New goal session found: ${sessionId}`) // Always log
       const newEntry = {
         /* ... (assemble goal info as before) ... */ cc: item.country_code || 'none',
         ip: item.ip_address || 'N/A',
@@ -193,7 +193,7 @@ ClickyChrome.Process.goals = function (apiGoalItems, currentLog) {
   })
 
   console.log(
-    'Finished processing goals. New for notification:',
+    '[Process] Finished processing goals. New for notification:',
     newGoalsForNotification,
     'Updated log:',
     updatedLog
