@@ -38,7 +38,7 @@ $(async function () {
     e.preventDefault()
     ClickyChrome.Popup.externalLink($(this))
   })
-  $('#show_options').on('click', function (e) {
+  $('body').on('click', '#show_options', function (e) {
     e.preventDefault()
     chrome.runtime.sendMessage({ action: 'showOptions' })
   })
@@ -70,6 +70,9 @@ $(async function () {
     }
   })
 
+  // Check for MV2 localStorage data migration
+  await ClickyChrome.Popup.checkMV2Migration()
+
   // Trigger background check on popup open
   console.log('[Popup] User opened popup - triggering API check')
   chrome.runtime.sendMessage({ action: 'triggerApiCheck' })
@@ -88,6 +91,122 @@ ClickyChrome.Popup.vars = {
     'last-30-days': 'Last 30 Days',
   },
   chartNames: { visitors: 'Visitors', actions: 'Actions', 'web-browsers': 'Browsers' },
+}
+
+ClickyChrome.Popup.checkMV2Migration = async function () {
+  console.log('[Popup] Checking for MV2 localStorage migration...')
+  try {
+    // Check if we've already migrated
+    const migrationStatus = await chrome.storage.local.get(['mv2MigrationCompleted'])
+    if (migrationStatus.mv2MigrationCompleted) {
+      console.log('[Popup] MV2 migration already completed')
+      return
+    }
+
+    // Check if we have meaningful MV3 data (non-empty keys array indicates real configuration)
+    const existingData = await chrome.storage.local.get(['clickychrome_keys'])
+    if (existingData.clickychrome_keys && existingData.clickychrome_keys.trim() !== '') {
+      console.log('[Popup] MV3 data with configured sites already exists, skipping migration')
+      await chrome.storage.local.set({ mv2MigrationCompleted: true })
+      return
+    }
+
+    // Check for MV2 localStorage data
+    const mv2Keys = [
+      'clickychrome_badgeColor',
+      'clickychrome_currentChart',
+      'clickychrome_customName',
+      'clickychrome_spyType',
+      'clickychrome_goalNotification',
+      'clickychrome_goalTimeout',
+      'clickychrome_goalLog',
+      'clickychrome_startTime',
+      'clickychrome_currentSite',
+      'clickychrome_names',
+      'clickychrome_urls', // This might not exist in old MV2 versions
+      'clickychrome_ids',
+      'clickychrome_keys',
+    ]
+
+    // First, check if there's meaningful MV2 data (non-empty keys array)
+    const mv2Keys_value = localStorage.getItem('clickychrome_keys')
+    if (!mv2Keys_value || mv2Keys_value.trim() === '') {
+      console.log(
+        '[Popup] No meaningful MV2 data found (empty or missing keys), marking migration as completed'
+      )
+      await chrome.storage.local.set({ mv2MigrationCompleted: true })
+      return
+    }
+
+    console.log('[Popup] Found meaningful MV2 data, proceeding with migration...')
+
+    const migrationData = { mv2MigrationCompleted: true }
+    let foundOldData = false
+
+    // localStorage should be available in popup context
+    for (const key of mv2Keys) {
+      const value = localStorage.getItem(key)
+      if (value !== null) {
+        try {
+          // Handle JSON data (goalLog, startTime)
+          if (key === 'clickychrome_goalLog') {
+            migrationData[key] = value ? JSON.parse(value) : {}
+          } else if (key === 'clickychrome_startTime') {
+            // Convert string timestamp to number if needed
+            const timestamp = parseInt(value, 10)
+            migrationData[key] = isNaN(timestamp) ? Date.now() : timestamp
+          } else {
+            migrationData[key] = value
+          }
+          foundOldData = true
+          console.log(`[Popup] Found MV2 data for: ${key}`)
+        } catch (parseError) {
+          console.warn(`[Popup] Error parsing MV2 data for ${key}:`, parseError)
+          // Store as-is if parsing fails
+          migrationData[key] = value
+          foundOldData = true
+        }
+      }
+    }
+
+    // Handle missing URLs field in older MV2 versions
+    if (foundOldData && !migrationData.clickychrome_urls && migrationData.clickychrome_names) {
+      const names = migrationData.clickychrome_names.split(',')
+      migrationData.clickychrome_urls = Array(names.length).fill('').join(',')
+      console.log('[Popup] Generated empty URLs for older MV2 data')
+    }
+
+    if (foundOldData) {
+      await chrome.storage.local.set(migrationData)
+      console.log('[Popup] Successfully migrated MV2 localStorage to MV3 chrome.storage.local')
+      console.log(
+        '[Popup] Migrated keys:',
+        Object.keys(migrationData).filter((k) => k !== 'mv2MigrationCompleted')
+      )
+
+      // Clear old localStorage data to prevent confusion
+      try {
+        for (const key of mv2Keys) {
+          localStorage.removeItem(key)
+        }
+        console.log('[Popup] Cleared old MV2 localStorage data')
+      } catch (clearError) {
+        console.warn('[Popup] Could not clear old localStorage data:', clearError)
+      }
+    } else {
+      // Mark as completed even if no data found
+      await chrome.storage.local.set({ mv2MigrationCompleted: true })
+      console.log('[Popup] No MV2 localStorage data found to migrate')
+    }
+  } catch (error) {
+    console.error('[Popup] Error during MV2 migration:', error)
+    // Mark as completed to prevent repeated failures
+    try {
+      await chrome.storage.local.set({ mv2MigrationCompleted: true })
+    } catch (e) {
+      console.error('[Popup] Failed to mark migration as completed:', e)
+    }
+  }
 }
 
 ClickyChrome.Popup.init = async function () {

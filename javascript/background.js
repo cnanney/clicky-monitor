@@ -67,6 +67,7 @@ const STORAGE_KEYS = [
   'clickychrome_keys',
   'lastActiveTimestamp',
   'currentIntervalLevel',
+  'mv2MigrationCompleted',
 ]
 
 // --- Helper Function to Update Timestamp (Debounced) ---
