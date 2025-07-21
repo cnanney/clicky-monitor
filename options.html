@@ -1,147 +1,230 @@
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <title>ClickyChrome Options</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="css/_reset.css" />
+    <link rel="stylesheet" href="css/colorbox.css" />
+    <link rel="stylesheet" href="css/options.css" />
+    <script src="javascript/jquery.js"></script>
+    <script src="javascript/functions.js"></script>
+    <script src="javascript/options.js"></script>
+  </head>
 
-<head>
-	<title>ClickyChrome Options</title>
-	<meta charset="utf-8" />
-	<link rel="stylesheet" href="css/_reset.css" />
-	<link rel="stylesheet" href="css/colorbox.css" />
-	<link rel="stylesheet" href="css/options.css" />
-	<script src="javascript/jquery.js"></script>
-	<script src="javascript/functions.js"></script>
-	<script src="javascript/options.js"></script>
-</head>
-
-<body>
-	<div id="wrapper">
-		<div id="header"><b>ClickyChrome</b><br />A Chrome Extension for Clicky Web Analytics</div>
-		<div class="divide"></div>
-		<h1>Use</h1>
-		<p>You must enter the following information below for each site you want to monitor:</p>
-		<ol>
-			<li><b>Name </b><span class="required">(Required)</span>: Name for your site, used in drop down menus. Example: 'My Blog'.</li>
-			<li><b>Domain </b><span class="optional">(Optional)</span>: Site domain as registered with Clicky. This is used to enable <a href="/help/help_context.html" id="context_help" title="What is that?">context menu</a> integration. No need to enter the 'http://', and no trailing slashes. Example: 'test.com' or 'www.test.com'. </li>
-			<li><b>Site ID </b><span class="required">(Required)</span>: The Site ID can be found in the site preferences area on Clicky.</li>
-			<li><b>Site Key </b><span class="required">(Required)</span>: The Site Key can be found in the site preferences area on Clicky.</li>
-		</ol>
-		<div class="divide"></div>
-		<h1>Sites <span><a href="#" class="add_site" title="Add site manually">Add site</a> | <a href="#" id="toggle_import" title="Import sites from Clicky">Import from Clicky</a></span>
-			<span class="right"><a href="#" id="toggle_problems" title="Something broken?">Problems?</a></span></h1>
-		<div id="problems">
-			<p>If you are experiencing problems or have entered incorrect data and would like to start fresh, click below to wipe all local ClickyChrome data.</p>
-			<br /><h2><a href="#" id="wipe" title="Destroy all data, take no prisoners!">WIPE DATA</a></h2>
-		</div>
-		<div id="import">
-			<p>Enter your Clicky username and password to automatically import all your sites.</p>
-			<p>Your information is only used to make a one-time API request (via HTTPS) and is not stored.</p>
-			<p><b>Importing from Clicky will delete any sites you have already manually entered</b>.</p>
-			<br />
-			<form id="import_form" action="">
-				<p>
-					<label for="username">Username:</label>
-					<input id="username" type="text" class="username" name="username" value="" />
-					<label for="password">Password:</label>
-					<input id="password" type="password" class="password" name="password" value="" />
-				</p>
-				<br />
-				<p><input value="Import Sites from Clicky" type="submit" id="import_button" /></p>
-				<img id="import_loader" src="/images/import_loader.gif" />
-				<div id="import_error"></div>
-			</form>
-		</div>
-		<form id="options_form" action="">
-			<table id="sites_table">
-				<thead>
-					<tr>
-						<th class="site_name">Name</th>
-						<th class="site_url">Domain</th>
-						<th class="site_id">Site ID</th>
-						<th class="site_key">Site Key</th>
-						<th class="edit"></th>
-					</tr>
-				</thead>
-				<tbody></tbody>
-			</table>
-			<div class="divide"></div>
-			<h1>Options<span class="right"><a href="/help/help_options.html" id="options_help" title="Explain these options!">What's all this?</a></span></h1>
-			<div class="option">
-				<div class="option_name">Badge Color:</div>
-				<div class="option_values">
-					<ul id="color">
-						<li>
-							<label for="c5"><img src="images/options_icon_black.png" alt="Black Badge" /></label>
-							<input id="c5" type="radio" class="color_input" name="badgeColor" value="0,0,0,200" />
-						</li>
-						<li>
-							<label for="c1"><img src="images/options_icon_orange.png" alt="Orange Badge" /></label>
-							<input id="c1" type="radio" class="color_input" name="badgeColor" value="243,112,0,200" />
-						</li>
-						<li id="red">
-							<label for="c2"><img src="images/options_icon_red.png" alt="Red Badge" /></label>
-							<input id="c2" type="radio" class="color_input" name="badgeColor" value="243,0,0,200" />
-						</li>
-						<li>
-							<label for="c3"><img src="images/options_icon_blue.png" alt="Blue Badge" /></label>
-							<input id="c3" type="radio" class="color_input" name="badgeColor" value="0,112,243,200" />
-						</li>
-						<li>
-							<label for="c4"><img src="images/options_icon_Purple.png" alt="Purple Badge" /></label>
-							<input id="c4" type="radio" class="color_input" name="badgeColor" value="112,0,243,200" />
-						</li>
-					</ul>
-				</div>
-			</div>
-			<div class="option odd">
-				<div class="option_name">Badge Count:</div>
-				<div class="option_values">
-					<ul id="indicator">
-						<li>
-							<input id="i1" type="radio" class="spy_type" name="spyType" value="online" />
-							<label for="i1">Visitors Online</label>
-						</li>
-						<li>
-							<input id="i2" type="radio" class="spy_type" name="spyType" value="visitors" />
-							<label for="i2">Total Visitors</label>
-						</li>
-						<li>
-							<input id="i3" type="radio" class="spy_type" name="spyType" value="goals" />
-							<label for="i3">Goals Completed</label>
-						</li>
-					</ul>
-				</div>
-			</div>
-			<div class="option last">
-				<div class="option_name">Goal Notification:</div>
-				<div class="option_values colors">
-					<ul id="notifications">
-						<li>
-							<label for="goal_notification">Show Notifications:</label>
-							<select id="goal_notification" name="goalNotification">
-								<option value="no">No</option>
-								<option value="yes">Yes</option>
-							</select>
-						</li>
-						<li>
-							<label for="goal_timeout">Show For:</label>
-							<select id="goal_timeout" name="goalTimeout">
-								<option value="10">10 Seconds</option>
-								<option value="20">20 Seconds</option>
-								<option value="30">30 Seconds</option>
-							</select>
-						</li>
-					</ul>
-				</div>
-			</div>
-			<div class="divide"></div>
-			<div class="center">
-				<div id="save_feedback"></div>
-				<input value="Save & Reload" type="submit" id="save_button" />
-				<div class="divide"></div>
-				<p><a href="http://cnanney.com/clickychrome" class="external" title="More ClickyChrome information">http://cnanney.com/clickychrome</a></p>
-				<p><a href="http://getclicky.com" class="external" title="Clicky website">http://getclicky.com</a></p>
-			</div>
-		</form>
-	</div>
-</body>
-
+  <body>
+    <div id="wrapper">
+      <div id="header"><b>ClickyChrome</b><br />A Chrome Extension for Clicky Web Analytics</div>
+      <div class="divide"></div>
+      <h1>Use</h1>
+      <p>You must enter the following information below for each site you want to monitor:</p>
+      <ol>
+        <li>
+          <b>Name </b><span class="required">(Required)</span>: Name for your site, used in drop
+          down menus. Example: 'My Blog'.
+        </li>
+        <li>
+          <b>Domain </b><span class="optional">(Optional)</span>: Site domain as registered with
+          Clicky. This is used to enable
+          <a href="/help/help_context.html" id="context_help" title="What is that?">context menu</a>
+          integration. No need to enter the 'https://', and no trailing slashes. Example: 'test.com'
+          or 'www.test.com'.
+        </li>
+        <li>
+          <b>Site ID </b><span class="required">(Required)</span>: The Site ID can be found in the
+          site preferences area on Clicky.
+        </li>
+        <li>
+          <b>Site Key </b><span class="required">(Required)</span>: The Site Key can be found in the
+          site preferences area on Clicky.
+        </li>
+      </ol>
+      <div class="divide"></div>
+      <h1>
+        Sites
+        <span
+          ><a href="#" class="add_site" title="Add site manually">Add site</a> |
+          <a href="#" id="toggle_import" title="Import sites from Clicky"
+            >Import from Clicky</a
+          ></span
+        >
+        <span class="right"
+          ><a href="#" id="toggle_problems" title="Something broken?">Problems?</a></span
+        >
+      </h1>
+      <div id="problems">
+        <p>
+          If you are experiencing problems or have entered incorrect data and would like to start
+          fresh, click below to wipe all local ClickyChrome data.
+        </p>
+        <br />
+        <h2><a href="#" id="wipe" title="Destroy all data, take no prisoners!">WIPE DATA</a></h2>
+      </div>
+      <div id="import">
+        <p>Enter your Clicky username and password to automatically import all your sites.</p>
+        <p>
+          Your information is only used to make a one-time API request (via HTTPS) and is not
+          stored.
+        </p>
+        <p><b>Importing from Clicky will delete any sites you have already manually entered</b>.</p>
+        <br />
+        <form id="import_form" action="">
+          <p>
+            <label for="username">Username:</label>
+            <input id="username" type="text" class="username" name="username" value="" />
+            <label for="password">Password:</label>
+            <input id="password" type="password" class="password" name="password" value="" />
+          </p>
+          <br />
+          <p><input value="Import Sites from Clicky" type="submit" id="import_button" /></p>
+          <img id="import_loader" src="/images/import_loader.gif" />
+          <div id="import_error"></div>
+        </form>
+      </div>
+      <form id="options_form" action="">
+        <table id="sites_table">
+          <thead>
+            <tr>
+              <th class="site_name">Name</th>
+              <th class="site_url">Domain</th>
+              <th class="site_id">Site ID</th>
+              <th class="site_key">Site Key</th>
+              <th class="edit"></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="divide"></div>
+        <h1>
+          Options<span class="right"
+            ><a href="/help/help_options.html" id="options_help" title="Explain these options!"
+              >What's all this?</a
+            ></span
+          >
+        </h1>
+        <div class="option">
+          <div class="option_name">Badge Color:</div>
+          <div class="option_values">
+            <ul id="color">
+              <li>
+                <label for="c5"
+                  ><img src="images/options_icon_black.png" alt="Black Badge"
+                /></label>
+                <input
+                  id="c5"
+                  type="radio"
+                  class="color_input"
+                  name="badgeColor"
+                  value="0,0,0,200"
+                />
+              </li>
+              <li>
+                <label for="c1"
+                  ><img src="images/options_icon_orange.png" alt="Orange Badge"
+                /></label>
+                <input
+                  id="c1"
+                  type="radio"
+                  class="color_input"
+                  name="badgeColor"
+                  value="243,112,0,200"
+                />
+              </li>
+              <li id="red">
+                <label for="c2"><img src="images/options_icon_red.png" alt="Red Badge" /></label>
+                <input
+                  id="c2"
+                  type="radio"
+                  class="color_input"
+                  name="badgeColor"
+                  value="243,0,0,200"
+                />
+              </li>
+              <li>
+                <label for="c3"><img src="images/options_icon_blue.png" alt="Blue Badge" /></label>
+                <input
+                  id="c3"
+                  type="radio"
+                  class="color_input"
+                  name="badgeColor"
+                  value="0,112,243,200"
+                />
+              </li>
+              <li>
+                <label for="c4"
+                  ><img src="images/options_icon_purple.png" alt="Purple Badge"
+                /></label>
+                <input
+                  id="c4"
+                  type="radio"
+                  class="color_input"
+                  name="badgeColor"
+                  value="112,0,243,200"
+                />
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="option odd">
+          <div class="option_name">Badge Count:</div>
+          <div class="option_values">
+            <ul id="indicator">
+              <li>
+                <input id="i1" type="radio" class="spy_type" name="spyType" value="online" />
+                <label for="i1">Visitors Online</label>
+              </li>
+              <li>
+                <input id="i2" type="radio" class="spy_type" name="spyType" value="visitors" />
+                <label for="i2">Total Visitors</label>
+              </li>
+              <li>
+                <input id="i3" type="radio" class="spy_type" name="spyType" value="goals" />
+                <label for="i3">Goals Completed</label>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="option last">
+          <div class="option_name">Goal Notification:</div>
+          <div class="option_values colors">
+            <ul id="notifications">
+              <li>
+                <label for="goal_notification">Show Notifications:</label>
+                <select id="goal_notification" name="goalNotification">
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </li>
+              <li>
+                <label for="goal_timeout">Show For:</label>
+                <select id="goal_timeout" name="goalTimeout">
+                  <option value="10">10 Seconds</option>
+                  <option value="20">20 Seconds</option>
+                  <option value="30">30 Seconds</option>
+                </select>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="divide"></div>
+        <div class="center">
+          <div id="save_feedback"></div>
+          <input value="Save & Reload" type="submit" id="save_button" />
+          <div class="divide"></div>
+          <p>
+            <a
+              href="https://cnanney.com/clickychrome"
+              class="external"
+              title="More ClickyChrome information"
+              >https://cnanney.com/clickychrome</a
+            >
+          </p>
+          <p>
+            <a href="https://clicky.com" class="external" title="Clicky website"
+              >https://clicky.com</a
+            >
+          </p>
+        </div>
+      </form>
+    </div>
+  </body>
 </html>

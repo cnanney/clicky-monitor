@@ -1,282 +1,305 @@
 /**
- * Clicky Monitor
+ * Clicky Monitor - Content Build Script (MV3 Compatible)
  * --------------
- * A Chrome extension for Clicky Web Analytics
- *
- * https://clicky.com
- * https://github.com/cnanney/clicky-monitor
- *
- * Licensed under MIT
- * http://www.opensource.org/licenses/mit-license.php
+ * Functions to fetch data and build HTML for the popup content area. Debug logging always on.
  */
 
-var ClickyChrome = ClickyChrome || {};
+ClickyChrome.Build = {}
 
-ClickyChrome.Build = {};
+// --- Build Functions ---
 
-ClickyChrome.Build.debug = chrome.extension.getBackgroundPage().ClickyChrome.Background.debug;
+ClickyChrome.Build.basics = async function (currentSite, currentDate) {
+  console.log(`[Build] Building basics page: site=${currentSite}, date=${currentDate}`)
 
-ClickyChrome.Build.basics = function(){
-  if (ClickyChrome.Build.debug) console.log('Fetch basic info');
+  if (!currentSite) {
+    ClickyChrome.Popup.loadHtml('<p>Error: No site selected for basics.</p>')
+    return
+  }
 
-  var siteInfo = localStorage["clickychrome_currentSite"].split(','),
-    linkURL = 'http://getclicky.com/stats/home?site_id='+siteInfo[0]+'&date='+localStorage["clickychrome_currentDate"],
-    spyURL = 'http://getclicky.com/stats/spy?site_id='+siteInfo[0]+'&date='+localStorage["clickychrome_currentDate"],
-    visitorsURL = 'http://getclicky.com/stats/visitors?site_id='+siteInfo[0]+'&date='+localStorage["clickychrome_currentDate"],
-    actionsURL = 'http://getclicky.com/stats/visitors-actions?site_id='+siteInfo[0]+'&date='+localStorage["clickychrome_currentDate"],
-    goalsURL = 'http://getclicky.com/stats/goals?site_id='+siteInfo[0]+'&date='+localStorage["clickychrome_currentDate"],
-    linkText = 'View '+siteInfo[2]+' on Clicky',
-    apiString = 'http://api.getclicky.com/api/stats/4?site_id='+siteInfo[0]+'&sitekey='+siteInfo[1]+
-      '&date='+localStorage["clickychrome_currentDate"]+'&type=visitors-online,visitors,actions,actions-average,time-total-pretty,'+
-      'time-average-pretty,bounce-rate,goals&output=json&app=clickychrome';
+  const siteInfo = currentSite.split(',')
+  const linkURLBase = `https://clicky.com/stats/home?site_id=${siteInfo[0]}`
+  const visitorsURL = `https://clicky.com/stats/visitors?site_id=${siteInfo[0]}&date=${currentDate}`
+  const actionsURL = `https://clicky.com/stats/visitors-actions?site_id=${siteInfo[0]}&date=${currentDate}`
+  const goalsURL = `https://clicky.com/stats/goals?site_id=${siteInfo[0]}&date=${currentDate}`
+  const linkText = `View ${siteInfo[2]} on Clicky`
+  const apiTypes =
+    'visitors-online,visitors,actions,actions-average,time-total-pretty,time-average-pretty,bounce-rate,goals'
+  const apiString = ClickyChrome.Functions.buildApiUrl('stats', {
+    site_id: siteInfo[0],
+    sitekey: siteInfo[1],
+    date: currentDate,
+    type: apiTypes,
+    output: 'json'
+  })
 
-  $.ajax({
-    url: apiString,
-    cache: false,
-    contentType: "application/json; charset=utf-8",
-    dataType: "json",
-    success: function(data){
-      if (data && data[0]){
-        var html = '';
-        if (data[0].error){
-          html = '<p id="no_site">'+data[0].error+'</p>';
-          ClickyChrome.Functions.setBadgeText('ERR');
-          ClickyChrome.Popup.loadHtml(html);
-          console.log(data[0].error);
+  console.log('[Build] Basics API URL:', apiString)
+
+  try {
+    const fetchStartTime = performance.now()
+    const response = await fetch(apiString, { cache: 'no-store' })
+    const fetchDuration = performance.now() - fetchStartTime
+    console.log(`[Build] Basics API fetch completed in ${fetchDuration.toFixed(2)}ms`)
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+    const data = await response.json()
+    console.log('[Build] Basics API Response (Snippet):', JSON.stringify(data).substring(0, 500) + '...')
+
+    if (data && Array.isArray(data) && data.length > 0) {
+      let html = ''
+      let apiError = data.find((item) => item && item.error)?.error
+
+      if (apiError) {
+        html = `<p id="no_site">${apiError}</p>`
+        ClickyChrome.Functions.setBadgeText('ERR') // Use utility function
+        console.error('[Build] Clicky API Error (Basics):', apiError)
+      } else {
+        if (typeof ClickyChrome?.Process?.basics !== 'function') {
+          throw new Error('ClickyChrome.Process.basics function not found.')
         }
-        else{
-          var info = ClickyChrome.Process.basics(data);
-
-          html = '<table class="basics_table" cellpadding="0" cellspacing="0">'+
-            '<tr><td class="left visitors"><a class="inline_external external" href="'+visitorsURL+'">Visitors</a>';
-
-          if (localStorage["clickychrome_currentDate"] == 'today'){
-            html += '<span class="online">'+info.online+' online now</span>';
-          }
-
-          html += '</td><td class="value">'+info.visitors+'</td></tr>'+
-            '<tr class="alt"><td class="left actions"><a class="inline_external external" href="'+actionsURL+'">Actions</td>'+
-            '<td class="value">'+info.actions+'</td></tr>'+
-            '<tr><td class="left average_actions">Average actions per visit</td>'+
-            '<td class="value">'+info.averageActions+'</td></tr>'+
-            '<tr class="alt"><td class="left time">Total time spent</td><td class="value">'+info.time+'</td></tr>'+
-            '<tr><td class="left time_average">Average time per visit</td><td class="value">'+info.averageTime+'</td></tr>'+
-            '<tr class="alt"><td class="left bounce">Bounce rate</td><td class="value">'+info.bounce+'%</td></tr>'+
-            '<tr><td class="left goal"><a class="inline_external external" href="'+goalsURL+'">Goals</td>'+
-            '<td class="value">'+info.goals+'</td></tr>'+
-            '</table><p id="link_to_clicky"><a class="external" href="'+linkURL+'">'+linkText+'</a></p>';
-
-          // Update badge with new value
-          switch (localStorage["clickychrome_spyType"]){
-            case 'online':
-              ClickyChrome.Functions.setBadgeNum(info.online);
-              break;
-            case 'visitors':
-              ClickyChrome.Functions.setBadgeNum(info.visitors);
-              break;
-            case 'goals':
-              ClickyChrome.Functions.setBadgeNum(info.goals);
-              break;
-          }
-
+        const info = ClickyChrome.Process.basics(data)
+        html = `<table class="basics_table" cellpadding="0" cellspacing="0">
+                    <tr><td class="left visitors"><a class="inline_external external" href="${visitorsURL}">Visitors</a>`
+        if (currentDate === 'today') {
+          html += `<span class="online">${info.online} online now</span>`
         }
-
-        if (ClickyChrome.Build.debug) console.log('Basics HTML built: '+html);
-        ClickyChrome.Popup.loadHtml(html);
+        html += `</td><td class="value">${info.visitors}</td></tr>
+                    <tr class="alt"><td class="left actions"><a class="inline_external external" href="${actionsURL}">Actions</a></td><td class="value">${info.actions}</td></tr>
+                    <tr><td class="left average_actions">Average actions</td><td class="value">${info.averageActions}</td></tr>
+                    <tr class="alt"><td class="left time">Total time spent</td><td class="value">${info.time}</td></tr>
+                    <tr><td class="left time_average">Average time</td><td class="value">${info.averageTime}</td></tr>
+                    <tr class="alt"><td class="left bounce">Bounce rate</td><td class="value">${info.bounce}%</td></tr>
+                    <tr><td class="left goal"><a class="inline_external external" href="${goalsURL}">Goals</a></td><td class="value">${info.goals}</td></tr>
+                </table>
+                <p id="link_to_clicky"><a class="external" href="${linkURLBase}&date=${currentDate}">${linkText}</a></p>`
       }
-    },
-    error: function(XMLHttpRequest, textStatus, errorThrown){
-      console.log("Status: "+textStatus+", Error: "+errorThrown);
-      console.log(XMLHttpRequest.responseText);
-      ClickyChrome.Popup.loadHtml(false);
+      console.log('[Build] Basics HTML content built')
+      ClickyChrome.Popup.loadHtml(html)
+    } else {
+      throw new Error('Invalid or empty data received from Basics API.')
     }
-  });
+  } catch (error) {
+    console.error('[Build] Error fetching or processing basics data:', error)
+    ClickyChrome.Popup.loadHtml('<p id="no_site">Error loading basic stats. Please try again.</p>')
+  }
+}
 
-};
+ClickyChrome.Build.visitors = async function (currentSite) {
+  console.log(`[Build] Building visitors page: site=${currentSite}`)
+  if (!currentSite) {
+    ClickyChrome.Popup.loadHtml('<p>Error: No site selected for visitors.</p>')
+    return
+  }
 
-ClickyChrome.Build.visitors = function(){
-  if (ClickyChrome.Build.debug) console.log('Fetch visitors list');
+  const siteInfo = currentSite.split(',')
+  const linkURL = `https://clicky.com/stats/visitors?site_id=${siteInfo[0]}`
+  const linkText = `View ${siteInfo[2]} on Clicky`
+  const apiString = ClickyChrome.Functions.buildApiUrl('stats', {
+    site_id: siteInfo[0],
+    sitekey: siteInfo[1],
+    type: 'visitors-list',
+    output: 'json',
+    limit: '5',
+    date: 'today'
+  })
 
-  var siteInfo = localStorage["clickychrome_currentSite"].split(','),
-    linkURL = 'http://getclicky.com/stats/visitors?site_id='+siteInfo[0],
-    linkText = 'View '+siteInfo[2]+' on Clicky',
-    apiString = 'http://api.getclicky.com/api/stats/4?site_id='+siteInfo[0]+
-      '&sitekey='+siteInfo[1]+'&type=visitors-list&output=json&limit=5&app=clickychrome';
+  console.log('[Build] Visitors API URL:', apiString)
 
-  $.ajax({
-    url: apiString,
-    cache: false,
-    contentType: "application/json; charset=utf-8",
-    dataType: "json",
-    success: function(data){
-      if (data && data[0]){
-        var html = '';
-        if (data[0].error){
-          html = '<p id="no_site">'+data[0].error+'</p>';
-          ClickyChrome.Popup.loadHtml(html);
-          console.log(data[0].error);
+  try {
+    const fetchStartTime = performance.now()
+    const response = await fetch(apiString, { cache: 'no-store' })
+    const fetchDuration = performance.now() - fetchStartTime
+    console.log(`[Build] Visitors API fetch completed in ${fetchDuration.toFixed(2)}ms`)
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+    const data = await response.json()
+    console.log('[Build] Visitors API Response (Snippet):', JSON.stringify(data).substring(0, 500) + '...')
+
+    if (data && Array.isArray(data) && data.length > 0) {
+      let html = ''
+      let apiError = data.find((item) => item && item.error)?.error
+
+      if (apiError) {
+        html = `<p id="no_site">${apiError}</p>`
+        console.error('[Build] Clicky API Error (Visitors):', apiError)
+      } else {
+        const items = data[0]?.dates?.[0]?.items
+        if (typeof ClickyChrome?.Process?.visitors !== 'function') {
+          throw new Error('ClickyChrome.Process.visitors function not found.')
         }
-        else{
-          var info = ClickyChrome.Process.visitors(data[0].dates[0].items),
-            count = 1, odd;
+        const info = ClickyChrome.Process.visitors(items || [], siteInfo)
+        const { clickychrome_customName = 'yes' } = await chrome.storage.local.get(
+          'clickychrome_customName'
+        )
 
-          if (info.length == 0){
-            html += '<h3>No visitors yet today.</h3>';
-          }
-          else{
-            html += '<h3>Last 5 Visitors Today</h3>';
-            for (var i = 0, c = info.length; i < c; i++){
-              var displayName, displayClass, actionClass;
-              if (localStorage["clickychrome_customName"] == "yes" && info[i].customName !== false){
-                displayName = info[i].customName;
-                displayClass = 'visitor_custom';
+        if (info.length === 0) {
+          html += '<h3>No visitors yet today.</h3>'
+        } else {
+          html += '<h3>Last 5 Visitors Today</h3>'
+          let count = 1
+          for (const visitor of info) {
+            let displayName =
+              clickychrome_customName === 'yes' && visitor.customName
+                ? visitor.customName
+                : visitor.ip
+            let displayClass =
+              clickychrome_customName === 'yes' && visitor.customName
+                ? 'visitor_custom'
+                : 'visitor_ip'
+            let actionClass = visitor.goals ? 'visitor_actions visitor_goal' : 'visitor_actions'
+            const odd = count % 2 === 0 ? ' alt' : ''
+            html += `<div class="visitor${odd}">
+                                <div class="visitor_info"><span class="visitor_flag"><img src="${visitor.flagImg}" alt="${visitor.geoLoc}" title="${visitor.geoLoc}" /></span> ${visitor.geoLoc} <span class="${displayClass}"><a class="external" href="${visitor.ipLink}" title="View details for ${displayName}">${displayName}</a></span></div>
+                                <div class="visitor_session">${visitor.time} - ${visitor.timeTotal} <span class="${actionClass}">Actions: <a class="external" href="${visitor.statsUrl}" title="View session actions">${visitor.actions}</a></span></div>
+                                <div class="visitor_landed"><b>Landed:</b> <a class="external" href="${visitor.contentUrl}" title="View stats for this landing page">${visitor.landed}</a></div>`
+            if (visitor.referrerDomain) {
+              html += `<div class="visitor_from"><b>From:</b> <a class="external" href="${visitor.referrerUrl}" title="Visit referrer URL">${visitor.referrerDomain}</a>`
+              if (visitor.referrerSearch) {
+                html += ` <span class="visitor_search" title="Search term">(${visitor.referrerSearch})</span>`
               }
-              else{
-                displayName = info[i].ip;
-                displayClass = 'visitor_ip';
-              }
-              actionClass = info[i].goals ? 'visitor_actions visitor_goal' : 'visitor_actions';
-              odd = (count % 2 == 0) ? ' alt' : '';
-              html += '<div class="visitor'+odd+'"><div class="visitor_info"><span class="visitor_flag"><img src="'+info[i].flagImg+'" alt="'+
-                info[i].geoLoc+'" /></span>'+info[i].geoLoc+'<span class="'+displayClass+'"><a class="external" href="'+info[i].ipLink+'">'+
-                displayName+'</a></span></div><div class="visitor_session">'+info[i].time+' - '+info[i].timeTotal+
-                '<span class="'+actionClass+'">Actions: <a class="external" href="'+info[i].statsUrl+'">'+info[i].actions+'</a></span></div>'+
-                '<div class="visitor_landed"><b>Landed:</b> <a class="external" href="'+info[i].contentUrl+'">'+info[i].landed+'</a></div>';
-
-              if (info[i].referrerDomain !== false){
-                html += '<div class="visitor_from"><b>From:</b> <a class="external" href="'+info[i].referrerUrl+'">'+info[i].referrerDomain+'</a>';
-                if (info[i].referrerSearch !== false){
-                  html += ' <span class="visitor_search">'+info[i].referrerSearch+'</span>';
-                }
-                html += '</div>';
-              }
-              html += '</div>';
-              count++;
+              html += '</div>'
             }
+            html += '</div>'
+            count++
           }
-          html += '<p id="link_to_clicky"><a class="external" href="'+linkURL+'">'+linkText+'</a></p>';
         }
-        if (ClickyChrome.Build.debug) console.log('Visitors HTML built: '+html);
-        ClickyChrome.Popup.loadHtml(html);
+        html += `<p id="link_to_clicky"><a class="external" href="${linkURL}">${linkText}</a></p>`
       }
-    },
-    error: function(XMLHttpRequest, textStatus, errorThrown){
-      console.log("Status: "+textStatus+", Error: "+errorThrown);
-      console.log(XMLHttpRequest.responseText);
-      ClickyChrome.Popup.loadHtml(false);
+      console.log('[Build] Visitors HTML content built')
+      ClickyChrome.Popup.loadHtml(html)
+    } else {
+      throw new Error('Invalid or empty data received from Visitors API.')
     }
-  });
-};
+  } catch (error) {
+    console.error('[Build] Error fetching or processing visitors data:', error)
+    ClickyChrome.Popup.loadHtml('<p id="no_site">Error loading visitor list. Please try again.</p>')
+  }
+}
 
-ClickyChrome.Build.charts = function(){
-  if (ClickyChrome.Build.debug) console.log('Fetch chart info');
-  var siteInfo = localStorage["clickychrome_currentSite"].split(','),
-    apiString,
+ClickyChrome.Build.charts = async function (currentSite, currentChart) {
+  console.log(`[Build] Building charts page: site=${currentSite}, chart=${currentChart}`)
+  if (!currentSite) {
+    ClickyChrome.Popup.loadHtml('<p>Error: No site selected for charts.</p>')
+    return
+  }
+
+  const siteInfo = currentSite.split(',')
+  let apiString,
     linkUrl,
     linkText,
-    tmpData = [],
-    tmpLabels = [],
-    tmpStatURLs = [];
+    chartTitle = ''
+  const apiBase = ClickyChrome.Functions.buildApiUrl('stats', {
+    site_id: siteInfo[0],
+    sitekey: siteInfo[1],
+    output: 'json'
+  })
+  linkText = `View ${siteInfo[2]} on Clicky`
 
-  if (localStorage["clickychrome_currentChart"] != 'web-browsers'){
+  try {
+    let responseData
+    if (currentChart === 'web-browsers') {
+      chartTitle = 'Top Browsers, Last 30 Days'
+      linkUrl = `https://clicky.com/stats/platforms?site_id=${siteInfo[0]}`
+      apiString = `${apiBase}&type=web-browsers&date=last-30-days&limit=11`
+      console.log('[Build] Browser Chart API URL:', apiString)
+      const fetchStartTime = performance.now()
+      const response = await fetch(apiString, { cache: 'no-store' })
+      const fetchDuration = performance.now() - fetchStartTime
+      console.log(`[Build] Browser Chart API fetch completed in ${fetchDuration.toFixed(2)}ms`)
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      responseData = await response.json()
+      console.log(
+        '[Build] Browser Chart API Response (Snippet):',
+        JSON.stringify(responseData).substring(0, 500) + '...'
+      )
 
-    apiString = 'http://api.getclicky.com/stats/api4?site_id='+siteInfo[0]+'&sitekey='+siteInfo[1]+'&type='+
-      localStorage["clickychrome_currentChart"]+'&date=previous-30-days&output=json&daily=1&app=clickychrome',
-      linkUrl = 'http://getclicky.com/stats/'+localStorage["clickychrome_currentChart"]+'?site_id='+siteInfo[0],
-      linkText = 'View '+siteInfo[2]+' on Clicky',
-      tmpData = [],
-      tmpLabels = [];
+      let apiError = responseData.find((item) => item && item.error)?.error
+      if (apiError) throw new Error(`API Error (Browsers): ${apiError}`)
 
-    $.ajax({
-      url: apiString,
-      cache: false,
-      contentType: "application/json; charset=utf-8",
-      dataType: "json",
-      success: function(data){
-        if (data && data[0]){
-          if (data[0].error){
-            var html = '<p id="no_site">'+data[0].error+'</p>';
-            ClickyChrome.Popup.loadHtml(html);
-            console.log(data[0].error);
+      if (responseData && responseData[0]) {
+        const items = responseData[0]?.dates?.[0]?.items || []
+        if (items.length > 0) {
+          let tmpData = [],
+            tmpLabels = [],
+            tmpStatURLs = []
+          items.forEach((item) => {
+            tmpData.push(Number(item.value_percent))
+            tmpLabels.push(item.title)
+            tmpStatURLs.push(item.stats_url)
+          })
+          if (tmpData.length > 10) {
+            const othersPercent = tmpData.slice(9).reduce((sum, val) => sum + val, 0)
+            tmpData = tmpData.slice(0, 9)
+            tmpLabels = tmpLabels.slice(0, 9)
+            tmpStatURLs = tmpStatURLs.slice(0, 9)
+            tmpData.push(othersPercent)
+            tmpLabels.push('Others')
+            tmpStatURLs.push(
+              `https://clicky.com/stats/platforms?site_id=${siteInfo[0]}&date=last-30-days`
+            )
           }
-          else{
-            if (data[0].dates[0].items.length > 0){
-              for (var i = 0; i < data[0].dates.length; i++){
-                tmpData.push(data[0].dates[i].items[0].value);
-                tmpLabels.push(data[0].dates[i].date);
-              }
-              $("#content").html('<div id="chart_area"><div id="chart"></div></div>');
-              ClickyChrome.Functions.drawChart(tmpData.join(','), tmpLabels.join(','), localStorage["clickychrome_currentChart"]);
-              $("#chart_area").append('<p id="link_to_clicky"><a class="external" href="'+linkUrl+'">'+linkText+'</a></p>');
-              ClickyChrome.Popup.hideLoader();
-              if (ClickyChrome.Build.debug) console.log('Graph loaded');
-            }
-          }
+          if (typeof ClickyChrome?.Functions?.drawPie !== 'function')
+            throw new Error('ClickyChrome.Functions.drawPie function not found.')
+          const chartHtml = `<div id="chart_area"><h3>${chartTitle}</h3><div id="chart"></div><p id="link_to_clicky"><a class="external" href="${linkUrl}">${linkText}</a></p></div>`
+          ClickyChrome.Popup.loadHtml(chartHtml)
+          ClickyChrome.Functions.drawPie(tmpData, tmpLabels, tmpStatURLs)
+          console.log('[Build] Pie chart rendered successfully')
+        } else {
+          ClickyChrome.Popup.loadHtml('<p>No browser data available for the last 30 days.</p>')
         }
-      },
-      error: function(XMLHttpRequest, textStatus, errorThrown){
-        console.log("Status: "+textStatus+", Error: "+errorThrown);
-        console.log(XMLHttpRequest.responseText);
+      } else {
+        throw new Error('Invalid response format from Browser API.')
       }
-    });
-  }
+    } else if (currentChart === 'visitors' || currentChart === 'actions') {
+      chartTitle = `Daily ${
+        currentChart.charAt(0).toUpperCase() + currentChart.slice(1)
+      }, Previous 30 Days`
+      linkUrl = `https://clicky.com/stats/${
+        currentChart === 'actions' ? 'visitors-actions' : currentChart
+      }?site_id=${siteInfo[0]}`
+      apiString = `${apiBase}&type=${currentChart}&date=previous-30-days&daily=1`
+      console.log('[Build] Line Chart API URL:', apiString)
+      const fetchStartTime = performance.now()
+      const response = await fetch(apiString, { cache: 'no-store' })
+      const fetchDuration = performance.now() - fetchStartTime
+      console.log(`[Build] Line Chart API fetch completed in ${fetchDuration.toFixed(2)}ms`)
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      responseData = await response.json()
+      console.log(
+        '[Build] Line Chart API Response (Snippet):',
+        JSON.stringify(responseData).substring(0, 500) + '...'
+      )
 
-  if (localStorage["clickychrome_currentChart"] == 'web-browsers'){
+      let apiError = responseData.find((item) => item && item.error)?.error
+      if (apiError) throw new Error(`API Error (${currentChart}): ${apiError}`)
 
-    apiString = 'http://api.getclicky.com/stats/api4?site_id='+siteInfo[0]+'&sitekey='+siteInfo[1]+'&type='+
-      localStorage["clickychrome_currentChart"]+'&date=last-30-days&output=json&limit=11&app=clickychrome',
-      linkUrl = 'http://getclicky.com/stats/visitors-browsers?site_id='+siteInfo[0],
-      linkText = 'View '+siteInfo[2]+' on Clicky',
-      tmpData = [],
-      tmpLabels = [],
-      tmpStatURLs = [];
-
-    $.ajax({
-      url: apiString,
-      cache: false,
-      contentType: "application/json; charset=utf-8",
-      dataType: "json",
-      success: function(data){
-        if (data && data[0]){
-          if (data[0].error){
-            var html = '<p id="no_site">'+data[0].error+'</p>';
-            ClickyChrome.Popup.loadHtml(html);
-            console.log(data[0].error);
+      if (responseData && responseData[0]) {
+        const dates = responseData[0]?.dates || []
+        if (dates.length > 0 && dates[0]?.items?.length > 0) {
+          let tmpData = [],
+            tmpLabels = []
+          for (let i = dates.length - 1; i >= 0; i--) {
+            tmpData.push(dates[i].items[0].value)
+            tmpLabels.push(dates[i].date)
           }
-          else{
-            if (data[0].dates[0].items.length > 0){
-              var len = data[0].dates[0].items.length, i;
-              for (i = 0; i < len; i++){
-                tmpData.push(Number(data[0].dates[0].items[i].value_percent));
-                tmpLabels.push(data[0].dates[0].items[i].title);
-                tmpStatURLs.push(data[0].dates[0].items[i].stats_url);
-              }
-
-              if (len > 10){
-                tmpStatURLs[9] = 'http://getclicky.com/stats/visitors-browsers?site_id='+siteInfo[0]+'&date=last-30-days';
-                var pTotal = 0;
-                for (i = 0; i < 9; i++){
-                  pTotal += tmpData[i];
-                }
-                tmpData[9] = 100-pTotal;
-                tmpLabels[9] = "Others";
-              }
-              $("#content").html('<div id="chart_area"><div id="chart"></div></div>');
-              ClickyChrome.Functions.drawPie(tmpData.slice(0, 10), tmpLabels.slice(0, 10), tmpStatURLs.slice(0, 10));
-              $("#chart_area").append('<p id="link_to_clicky"><a class="external" href="'+linkUrl+'">'+linkText+'</a></p>');
-              $("#chart_area").prepend('<h3>Top Browsers, Last 30 Days</h3>');
-              ClickyChrome.Popup.hideLoader();
-              if (ClickyChrome.Build.debug) console.log('Pie chart loaded');
-            }
-          }
+          if (typeof ClickyChrome?.Functions?.drawChart !== 'function')
+            throw new Error('ClickyChrome.Functions.drawChart function not found.')
+          const chartHtml = `<div id="chart_area"><h3>${chartTitle}</h3><div id="chart"></div><p id="link_to_clicky"><a class="external" href="${linkUrl}">${linkText}</a></p></div>`
+          ClickyChrome.Popup.loadHtml(chartHtml)
+          ClickyChrome.Functions.drawChart(tmpData.join(','), tmpLabels.join(','), currentChart)
+          console.log('[Build] Line chart rendered successfully')
+        } else {
+          ClickyChrome.Popup.loadHtml(
+            `<p>No ${currentChart} data available for the previous 30 days.</p>`
+          )
         }
-      },
-      error: function(XMLHttpRequest, textStatus, errorThrown){
-        console.log("Status: "+textStatus+", Error: "+errorThrown);
-        console.log(XMLHttpRequest.responseText);
+      } else {
+        throw new Error(`Invalid response format from ${currentChart} API.`)
       }
-    });
-
+    } else {
+      throw new Error(`Unknown chart type requested: ${currentChart}`)
+    }
+  } catch (error) {
+    console.error(`[Build] Error fetching or processing chart data (${currentChart}):`, error)
+    ClickyChrome.Popup.loadHtml(
+      `<p id="no_site">Error loading chart data: ${error.message}. Please try again.</p>`
+    )
   }
-
-};
+}

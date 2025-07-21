@@ -1,339 +1,441 @@
 /**
- * Clicky Monitor
+ * Clicky Monitor - Options Script (MV3 Compatible)
  * --------------
- * A Chrome extension for Clicky Web Analytics
- *
- * https://clicky.com
- * https://github.com/cnanney/clicky-monitor
- *
- * Licensed under MIT
- * http://www.opensource.org/licenses/mit-license.php
+ * Attaches to the global ClickyChrome object. Debug logging always on.
  */
 
-var ClickyChrome = ClickyChrome || {};
+ClickyChrome.Options = {}
 
-ClickyChrome.Options = {};
+function getFormData(form) {
+  const formData = new FormData(form)
+  return {
+    name: formData.getAll('name[]'),
+    url: formData.getAll('url[]'),
+    id: formData.getAll('id[]'),
+    key: formData.getAll('key[]'),
+    badgeColor: formData.get('badgeColor'),
+    spyType: formData.get('spyType'),
+    goalNotification: formData.get('goalNotification'),
+    goalTimeout: formData.get('goalTimeout'),
+  }
+}
 
-ClickyChrome.Options.debug = chrome.extension.getBackgroundPage().ClickyChrome.Background.debug;
+;(async () => {
+  console.log('[Options] Script loaded')
 
-$(function(){
-
-  $(".edit_site").live("click", function(){
-    $(this).parents("tr").find("div").toggleClass("off");
-    $(this).parent("span").remove();
-    return false;
-  });
-
-  $(".remove_site").live("click", function(){
-    $(this).parents("tr").remove();
-    ClickyChrome.Options.checkSites();
-    return false;
-  });
-
-  $(".add_site").click(function(){
-    var string = '<tr><td><div class="input_name"><input class="input_name" name="name[]" /></div></td>'+
-      '<td><div class="input_url"><input class="input_url" name="url[]" /></div></td>'+
-      '<td><div class="input_id"><input class="input_id" name="id[]" /></div></td>'+
-      '<td><div class="input_key"><input class="input_key" name="key[]" /></div></td>'+
-      '<td><span><a href="#" class="remove_site">remove</a></td></tr>';
-    $("tbody").append(string);
-    ClickyChrome.Options.checkSites();
-    return false;
-  });
-
-  $("#toggle_problems").click(function(){
-    $("#problems").slideToggle("slow");
-    return false;
-  });
-
-  $("#toggle_import").click(function(){
-    $("#import").slideToggle("slow");
-    return false;
-  });
-
-  $("#options_help, #context_help").colorbox({title: true});
-
-  $("#wipe").click(function(){
-    ClickyChrome.Options.wipeData();
-  });
-
-  $("#goal_notification").change(function(){
-    ClickyChrome.Options.checkVis($(this));
-  });
-
-  $("#sample_notification").live("click", function(){
-    chrome.extension.getBackgroundPage().ClickyChrome.Background.createSampleNotification();
-    return false;
-  });
-
-  $("#options_form").submit(function(){
-    var missing = 0, invalid = 0, invalid_name = 0,
-      num = $("tbody tr[id!=reminder]").length;
-
-    if (num == 0){
-      alert('You must add at least one site to use this extension.');
-      return false;
+  $(async function () {
+    // --- Event Listeners ---
+    $('tbody').on('click', '.edit_site', function (e) {
+      e.preventDefault()
+      $(this).closest('tr').find('.display_value, .input_value').toggleClass('off')
+    })
+    $('tbody').on('click', '.remove_site', function (e) {
+      e.preventDefault()
+      $(this).closest('tr').remove()
+      ClickyChrome.Options.checkSites()
+    })
+    $('.add_site').on('click', function (e) {
+      e.preventDefault()
+      const string = `<tr><td><div class="input_value"><input class="input_name" name="name[]" value="" /></div></td><td><div class="input_value"><input class="input_url" name="url[]" value="" /></div></td><td><div class="input_value"><input class="input_id" name="id[]" value="" /></div></td><td><div class="input_value"><input class="input_key" name="key[]" value="" /></div></td><td class="edit"><a href="#" class="remove_site" title="Remove this site">remove</a></td></tr>`
+      $('tbody').append(string)
+      ClickyChrome.Options.checkSites()
+    })
+    $('#toggle_problems').on('click', function (e) {
+      e.preventDefault()
+      $('#problems').slideToggle('slow')
+    })
+    $('#toggle_import').on('click', function (e) {
+      e.preventDefault()
+      $('#import').slideToggle('slow')
+    })
+    if ($.fn.colorbox) {
+      $('#options_help, #context_help').colorbox({
+        title: false,
+      })
+      console.log('[Options] Colorbox initialized for help links')
+    } else {
+      console.warn('[Options] Colorbox not found, help links will open normally')
+      $('#options_help, #context_help').on('click', function (e) {
+        e.preventDefault()
+        window.open($(this).attr('href'), '_blank')
+      })
     }
-    else{
+    $('#wipe').on('click', async function (e) {
+      e.preventDefault()
+      if (confirm('Are you sure you want to delete ALL Clicky Monitor data?'))
+        await ClickyChrome.Options.wipeData()
+    })
+    $('#goal_notification').on('change', function () {
+      ClickyChrome.Options.checkVis($(this))
+    })
+    $(document).on('click', '#sample_notification', function (e) {
+      e.preventDefault()
+      console.log('[Options] Sample notification link clicked')
+      // Send message to background script to trigger the sample
+      chrome.runtime.sendMessage({ action: 'createSampleNotification' }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            '[Options] Error sending message for sample notification:',
+            chrome.runtime.lastError.message
+          )
+        } else {
+          console.log('[Options] Message sent for sample notification, response:', response?.status)
+        }
+      })
+    })
 
-      // Do some validation
-      $("input.input_id, input.input_key").each(function(){
-        var value = $(this).val().replace(/^\s+|\s+$/g, "");
-        $(this).val(value);
-        if (value == ''){
-          missing = 1;
-        }
-        var reg = /^[A-Za-z\d]+$/;
-        if (!reg.test(value)){
-          invalid = 1;
-        }
-      });
-
-      $("input.input_name").each(function(){
-        var value = $(this).val().replace(/^\s+|\s+$/g, "");
-        $(this).val(value);
-        if (value == ''){
-          missing = 1;
-        }
-        if (value.indexOf(',') != -1){
-          invalid_name = 1;
-        }
-      });
-
-      $("input.input_url").each(function(){
-        var value = $(this).val().replace(/^\s+|\s+$/g, "");
-        value = value.replace(/(^[a-z][a-z0-9+\-.]*:\/\/)|(\/$)/ig, "");
-        $(this).val(value);
-        if (value.indexOf(',') != -1){
-          invalid_name = 1;
-        }
-      });
-
-      if (missing == 1){
-        alert('You must enter a name, ID, and key for each site.');
-        return false;
+    $('#options_form').on('submit', async function (e) {
+      e.preventDefault()
+      let missing = 0,
+        invalid = 0,
+        invalid_name = 0
+      const num = $('tbody tr[id!=reminder]').length
+      if (num === 0) {
+        alert('You must add at least one site.')
+        return
       }
-      else if (invalid == 1){
-        alert('Only letters and digits allowed for ID and Key fields.');
-        return false;
-      }
-      else if (invalid_name == 1){
-        alert('No commas allowed in site name or domain.');
-        return false;
-      }
-      else{
-        // A little JS-fu to get things into a nice object
-        var data = $.deparam($(this).serialize());
-        ClickyChrome.Options.saveData(data);
-        return false;
-      }
-    }
-  });
 
-  $("#import_form").submit(function(){
-    $("#import_loader").show();
+      $('tbody tr[id!=reminder]').each(function () {
+        const $row = $(this)
+        const nameInput = $row.find('input.input_name')
+        const urlInput = $row.find('input.input_url')
+        const idInput = $row.find('input.input_id')
+        const keyInput = $row.find('input.input_key')
+        let nameValue = nameInput.val().trim()
+        nameInput.val(nameValue)
+        if (nameValue === '') missing = 1
+        if (nameValue.includes(',')) invalid_name = 1
+        let urlValue = urlInput
+          .val()
+          .trim()
+          .replace(/(^\w+:\/\/)|(\/$)/gi, '')
+        urlInput.val(urlValue)
+        if (urlValue.includes(',')) invalid_name = 1
+        let idValue = idInput.val().trim()
+        idInput.val(idValue)
+        if (idValue === '') missing = 1
+        if (!/^[A-Za-z0-9]+$/.test(idValue) && idValue !== '') invalid = 1
+        let keyValue = keyInput.val().trim()
+        keyInput.val(keyValue)
+        if (keyValue === '') missing = 1
+        if (!/^[A-Za-z0-9]+$/.test(keyValue) && keyValue !== '') invalid = 1
+      })
+      if (missing) {
+        alert('Name, Site ID, and Site Key are required for each site.')
+        return
+      }
+      if (invalid_name) {
+        alert('Commas are not allowed in Name or Domain fields.')
+        return
+      }
+      if (invalid) {
+        alert('Only letters/numbers allowed for Site ID and Site Key.')
+        return
+      }
 
-    var username = escape($("#username").val()),
-      password = escape($("#password").val()),
-      apiString = 'https://api.getclicky.com/api/account/sites?username='+username+'&password='+password+'&output=json&app=clickychrome';
+      const data = getFormData(this)
+      await ClickyChrome.Options.saveData(data)
+    })
 
-    $.ajax({
-      url: apiString,
-      cache: false,
-      contentType: "application/json; charset=utf-8",
-      dataType: "json",
-      success: function(data){
-        $("#import_loader").hide();
-        if (data && data[0]){
-          if (data[0].error){
-            $("#import_error").show().text(data[0].error);
-            console.log(data[0].error);
-          }
-          else{
-            var imported = {
-              name: [],
-              url: [],
-              id: [],
-              key: []
-            };
-            for (var i = 0, c = data.length; i < c; i++){
-              imported.name.push(data[i].nickname);
-              imported.url.push(data[i].hostname);
-              imported.id.push(data[i].site_id);
-              imported.key.push(data[i].sitekey);
-            }
-            ClickyChrome.Options.saveImported(imported);
-          }
+    $('#import_form').on('submit', async function (e) {
+      e.preventDefault()
+      $('#import_loader').show()
+      $('#import_error').hide().text('')
+      const username = $('#username').val()
+      const password = $('#password').val()
+      const apiString = ClickyChrome.Functions.buildApiUrl('account', {
+        username: username,
+        password: password,
+        output: 'json'
+      })
+      try {
+        console.log('[Options] Import API URL:', apiString)
+        const response = await fetch(apiString, { cache: 'no-store' })
+        let errorText = `HTTP error! status: ${response.status}`
+        if (!response.ok) {
+          try {
+            const d = await response.json()
+            if (d && d[0]?.error) errorText = d[0].error
+          } catch (e) {}
+          throw new Error(errorText)
         }
-      },
-      error: function(XMLHttpRequest, textStatus, errorThrown){
-        console.log("Status: "+textStatus+", Error: "+errorThrown);
-        console.log(XMLHttpRequest.responseText);
-        $("#import_error").show().text('Unknown error, please try again later.');
+        const data = await response.json()
+        console.log(
+          '[Options] Import API Response (Snippet):',
+          JSON.stringify(data).substring(0, 500) + '...'
+        )
+        if (data && Array.isArray(data)) {
+          if (data[0]?.error) throw new Error(data[0].error)
+          const imported = { name: [], url: [], id: [], key: [] }
+          data.forEach((site) => {
+            imported.name.push(site.nickname || `Site ${site.site_id}`)
+            imported.url.push(site.hostname || '')
+            imported.id.push(site.site_id)
+            imported.key.push(site.sitekey)
+          })
+          await ClickyChrome.Options.saveImported(imported)
+          $('#import').slideUp('slow')
+        } else {
+          throw new Error('Received invalid data from import API.')
+        }
+      } catch (error) {
+        console.error('[Options] Import Error:', error)
+        $('#import_error').show().text(`Import failed: ${error.message}`)
+      } finally {
+        $('#import_loader').hide()
       }
-    });
+    })
 
-    return false;
-  });
-
-  // Return a helper with preserved width of cells
-  // http://lanitdev.wordpress.com/2009/07/23/make-table-rows-sortable-using-jquery-ui-sortable/
-  var fixHelper = function(e, ui){
-    ui.children().each(function(){
-      $(this).width($(this).width());
-    });
-    return ui;
-  };
-
-  $("tbody").sortable({
-    axis: 'y',
-    handle: 'img',
-    cursor: 'move',
-    helper: fixHelper,
-    forcePlaceholderSize: true,
-    tolerance: 'pointer'
-  });
-
-});
-
-ClickyChrome.Options.vars = {
-  nameArray: [],
-  urlArray: [],
-  idArray: [],
-  keyArray: [],
-  currentArray: []
-};
-
-ClickyChrome.Options.init = function(){
-  if (typeof localStorage["clickychrome_names"] != "undefined"){
-    if (localStorage["clickychrome_names"].indexOf(',') == -1){
-      this.vars.nameArray[0] = localStorage["clickychrome_names"];
-      this.vars.urlArray[0] = localStorage["clickychrome_urls"];
-      this.vars.idArray[0] = localStorage["clickychrome_ids"];
-      this.vars.keyArray[0] = localStorage["clickychrome_keys"];
-    }
-    else{
-      this.vars.nameArray = localStorage["clickychrome_names"].split(',');
-      this.vars.urlArray = localStorage["clickychrome_urls"].split(',');
-      this.vars.idArray = localStorage["clickychrome_ids"].split(',');
-      this.vars.keyArray = localStorage["clickychrome_keys"].split(',');
+    if ($.fn.sortable) {
+      // Check if sortable exists
+      const fixHelper = (e, ui) => {
+        ui.children().each(function () {
+          $(this).width($(this).width())
+        })
+        return ui
+      }
+      $('tbody').sortable({
+        axis: 'y',
+        handle: 'img.grip',
+        cursor: 'move',
+        helper: fixHelper,
+        forcePlaceholderSize: true,
+        placeholder: 'sortable-placeholder',
+        tolerance: 'pointer',
+        items: '> tr:not(#reminder)',
+      })
+      console.log('[Options] jQuery UI Sortable initialized')
+    } else {
+      console.warn('[Options] jQuery UI Sortable not found. Table reordering disabled')
+      $('img.grip').hide()
     }
 
-    if (typeof localStorage["clickychrome_currentSite"] == "undefined"){
-      this.resetCurrent();
+    await ClickyChrome.Options.init() // Initial load
+  }) // End jQuery document ready
+})() // End async IIFE
+
+ClickyChrome.Options.init = async function () {
+  console.log('[Options] Initialization started')
+  try {
+    const data = await chrome.storage.local.get([
+      'clickychrome_names',
+      'clickychrome_urls',
+      'clickychrome_ids',
+      'clickychrome_keys',
+      'clickychrome_currentSite',
+      'clickychrome_badgeColor',
+      'clickychrome_spyType',
+      'clickychrome_goalNotification',
+      'clickychrome_goalTimeout',
+    ])
+    console.log('[Options] Loaded data from storage:', data)
+
+    const nameArray = data.clickychrome_names ? data.clickychrome_names.split(',') : []
+    const urlArray = data.clickychrome_urls ? data.clickychrome_urls.split(',') : []
+    const idArray = data.clickychrome_ids ? data.clickychrome_ids.split(',') : []
+    const keyArray = data.clickychrome_keys ? data.clickychrome_keys.split(',') : []
+    const maxLength = Math.max(nameArray.length, urlArray.length, idArray.length, keyArray.length)
+    while (nameArray.length < maxLength) nameArray.push('')
+    while (urlArray.length < maxLength) urlArray.push('')
+    while (idArray.length < maxLength) idArray.push('')
+    while (keyArray.length < maxLength) keyArray.push('')
+
+    let currentSite = data.clickychrome_currentSite
+    if (currentSite) {
+      const currentInfo = currentSite.split(',')
+      let isValid = false
+      if (currentInfo.length === 3) {
+        const idx = idArray.indexOf(currentInfo[0])
+        if (idx > -1 && keyArray[idx] === currentInfo[1] && nameArray[idx] === currentInfo[2])
+          isValid = true
+      }
+      if (!isValid) {
+        console.log('[Options] Current site invalid, resetting')
+        currentSite = await this.resetCurrent(idArray, keyArray, nameArray)
+      }
+    } else if (idArray.length > 0) {
+      console.log('[Options] No current site set, resetting')
+      currentSite = await this.resetCurrent(idArray, keyArray, nameArray)
     }
-    else{
-      var name_match = 0, id_match = 0, key_match = 0;
-      this.vars.currentArray = localStorage["clickychrome_currentSite"].split(',');
-      for (var i = 0, c = this.vars.nameArray.length; i < c; i++){
-        if (this.vars.nameArray[i] == this.vars.currentArray[2]) name_match = 1;
-        if (this.vars.keyArray[i] == this.vars.currentArray[1]) key_match = 1;
-        if (this.vars.idArray[i] == this.vars.currentArray[0]) id_match = 1;
-      }
-      if (name_match == 0 || key_match == 0 || id_match == 0){
-        this.resetCurrent();
-      }
+
+    await this.buildSiteTable(nameArray, urlArray, idArray, keyArray)
+
+    const badgeColor = data.clickychrome_badgeColor || '0,0,0,200'
+    $(`.color_input[value="${badgeColor}"]`).prop('checked', true)
+    const spyType = data.clickychrome_spyType || 'online'
+    $(`.spy_type[value="${spyType}"]`).prop('checked', true)
+    const goalNotification = data.clickychrome_goalNotification || 'no'
+    $('#goal_notification').val(goalNotification)
+    this.checkVis($('#goal_notification'))
+    const goalTimeout = data.clickychrome_goalTimeout || '10'
+    $('#goal_timeout').val(goalTimeout)
+
+    $('#problems, #import').hide()
+    $('#import_error').hide()
+    $('#username, #password').val('')
+    $('#save_feedback').hide()
+  } catch (error) {
+    console.error('[Options] Error initializing options:', error)
+  }
+}
+
+ClickyChrome.Options.saveData = async function (data) {
+  console.log('[Options] Saving data:', data)
+  const storageData = {
+    clickychrome_names: data.name.join(','),
+    clickychrome_urls: data.url.join(','),
+    clickychrome_ids: data.id.join(','),
+    clickychrome_keys: data.key.join(','),
+    clickychrome_badgeColor: data.badgeColor,
+    clickychrome_spyType: data.spyType,
+    clickychrome_goalNotification: data.goalNotification,
+    clickychrome_goalTimeout: data.goalTimeout,
+  }
+  try {
+    const currentSiteData = await chrome.storage.local.get('clickychrome_currentSite')
+    let currentSite = currentSiteData.clickychrome_currentSite
+    let siteStillExists = false
+    if (currentSite) {
+      const currentInfo = currentSite.split(',')
+      const currentIndex = storageData.clickychrome_ids.split(',').indexOf(currentInfo[0])
+      if (
+        currentIndex > -1 &&
+        storageData.clickychrome_keys.split(',')[currentIndex] === currentInfo[1] &&
+        storageData.clickychrome_names.split(',')[currentIndex] === currentInfo[2]
+      )
+        siteStillExists = true
+    }
+    if (!siteStillExists && data.id.length > 0) {
+      storageData.clickychrome_currentSite = `${data.id[0]},${data.key[0]},${data.name[0]}`
+      console.log('[Options] Current site reset to first:', storageData.clickychrome_currentSite)
+    } else if (data.id.length === 0) {
+      storageData.clickychrome_currentSite = ''
+      console.log('[Options] All sites removed, clearing current site')
+    } else if (currentSite && siteStillExists) {
+      storageData.clickychrome_currentSite = currentSite
+    }
+
+    await chrome.storage.local.set(storageData)
+    await this.init() // Re-initialize UI
+    $('#save_feedback').text('Options saved.').removeClass('error').show().delay(3000).fadeOut(500)
+    console.log('[Options] Options saved successfully')
+  } catch (error) {
+    console.error('[Options] Error saving options:', error)
+    $('#save_feedback').text('Error saving options!').addClass('error').show()
+  }
+}
+
+ClickyChrome.Options.saveImported = async function (data) {
+  console.log('[Options] Saving imported data:', data)
+  const storageData = {
+    clickychrome_names: data.name.join(','),
+    clickychrome_urls: data.url.join(','),
+    clickychrome_ids: data.id.join(','),
+    clickychrome_keys: data.key.join(','),
+  }
+  if (data.id.length > 0) {
+    storageData.clickychrome_currentSite = `${data.id[0]},${data.key[0]},${data.name[0]}`
+  } else {
+    storageData.clickychrome_currentSite = ''
+  }
+  try {
+    await chrome.storage.local.set(storageData)
+    await this.init() // Re-initialize page
+    console.log('[Options] Imported data saved successfully')
+    alert('Sites imported successfully!')
+  } catch (error) {
+    console.error('[Options] Error saving imported data:', error)
+    alert('Error saving imported data.')
+  }
+}
+
+ClickyChrome.Options.wipeData = async function () {
+  console.log('[Options] Wiping all extension data')
+  try {
+    await chrome.storage.local.clear()
+    console.log('[Options] Local storage cleared')
+    chrome.tabs.getCurrent((tab) => {
+      if (tab && tab.id) chrome.tabs.remove(tab.id)
+      else alert('Data wiped. Please close this tab.')
+    })
+  } catch (error) {
+    console.error('[Options] Error wiping data:', error)
+    alert('Error wiping data.')
+  }
+}
+
+ClickyChrome.Options.buildSiteTable = async function (nameArray, urlArray, idArray, keyArray) {
+  const tbody = $('tbody')
+  tbody.empty()
+  if (nameArray.length === 0) {
+    this.checkSites()
+    return
+  }
+  for (let i = 0; i < nameArray.length; i++) {
+    const esc = (str) => str.replace(/"/g, '"').replace(/</g, '<').replace(/>/g, '>')
+    const name = nameArray[i] || ''
+    const url = urlArray[i] || ''
+    const id = idArray[i] || ''
+    const key = keyArray[i] || ''
+    const string = `<tr><td><div class="display_value"><img title="Drag to re-order" class="grip" src="/images/grippy.png" /> ${esc(
+      name
+    )}</div><div class="input_value off"><input class="input_name" name="name[]" value="${esc(
+      name
+    )}" /></div></td><td><div class="display_value">${esc(
+      url
+    )}</div><div class="input_value off"><input class="input_url" name="url[]" value="${esc(
+      url
+    )}" /></div></td><td><div class="display_value">${esc(
+      id
+    )}</div><div class="input_value off"><input class="input_id" name="id[]" value="${esc(
+      id
+    )}" /></div></td><td><div class="display_value">${esc(
+      key
+    )}</div><div class="input_value off"><input class="input_key" name="key[]" value="${esc(
+      key
+    )}" /></div></td><td class="edit"><a href="#" class="edit_site" title="Edit this site">edit</a> | <a href="#" class="remove_site" title="Remove this site">remove</a></td></tr>`
+    tbody.append(string)
+  }
+  if (!$.fn.sortable) $('img.grip').hide() // Hide grips if sortable missing
+  this.checkSites()
+  console.log('[Options] Site table built with', nameArray.length, 'sites')
+}
+
+ClickyChrome.Options.checkSites = function () {
+  const num = $('tbody tr[id!=reminder]').length
+  if (num === 0) {
+    if ($('#reminder').length === 0)
+      $('tbody').append(
+        '<tr id="reminder"><td colspan="5">No sites configured. Use "Add site" or "Import from Clicky".</td></tr>'
+      )
+  } else {
+    $('#reminder').remove()
+  }
+}
+
+ClickyChrome.Options.resetCurrent = async function (idArray, keyArray, nameArray) {
+  let newCurrentSite = ''
+  if (idArray && idArray.length > 0) {
+    newCurrentSite = `${idArray[0]},${keyArray[0]},${nameArray[0]}`
+    try {
+      await chrome.storage.local.set({ clickychrome_currentSite: newCurrentSite })
+      console.log('[Options] Current site reset to:', newCurrentSite)
+    } catch (error) {
+      console.error('[Options] Error saving reset current site:', error)
+    }
+  } else {
+    try {
+      await chrome.storage.local.remove('clickychrome_currentSite')
+      console.log('[Options] Current site cleared as no sites available')
+    } catch (error) {
+      console.error('[Options] Error removing current site during reset:', error)
     }
   }
-  $(".color_input").each(function(){
-    if ($(this).val() == localStorage["clickychrome_badgeColor"])
-      $(this).attr("checked", "checked");
-  });
-  $(".spy_type").each(function(){
-    if ($(this).val() == localStorage["clickychrome_spyType"])
-      $(this).attr("checked", "checked");
-  });
-  $("#goal_notification").val(localStorage["clickychrome_goalNotification"]);
-  $("#goal_timeout").val(localStorage["clickychrome_goalTimeout"]);
-  if ($("#goal_notification").val() == 'no') $("#goal_notification").parent("li").next().hide();
-  $("#problems, #import").slideUp('fast');
-  $("#import_error").hide();
-  $("#username, #password").val('');
+  return newCurrentSite
+}
 
-  this.buildSiteTable();
-};
-
-ClickyChrome.Options.saveData = function(data){
-  if (this.debug) console.log(data);
-  localStorage["clickychrome_names"] = data.name.join(',');
-  localStorage["clickychrome_urls"] = data.url.join(',');
-  localStorage["clickychrome_ids"] = data.id.join(',');
-  localStorage["clickychrome_keys"] = data.key.join(',');
-  localStorage["clickychrome_badgeColor"] = data.badgeColor;
-  localStorage["clickychrome_spyType"] = data.spyType;
-  localStorage["clickychrome_goalNotification"] = data.goalNotification;
-  localStorage["clickychrome_goalTimeout"] = data.goalTimeout;
-
-  this.init();
-  $("#save_feedback").show().text('Options saved. You can close this tab.').delay(6000).fadeOut(1000);
-  chrome.extension.getBackgroundPage().ClickyChrome.Background.init();
-};
-
-ClickyChrome.Options.saveImported = function(data){
-  if (this.debug) console.log(data);
-  localStorage["clickychrome_names"] = data.name.join(',');
-  localStorage["clickychrome_urls"] = data.url.join(',');
-  localStorage["clickychrome_ids"] = data.id.join(',');
-  localStorage["clickychrome_keys"] = data.key.join(',');
-
-  this.init();
-  chrome.extension.getBackgroundPage().ClickyChrome.Background.init();
-};
-
-ClickyChrome.Options.wipeData = function(){
-  delete localStorage["clickychrome_names"];
-  delete localStorage["clickychrome_urls"];
-  delete localStorage["clickychrome_ids"];
-  delete localStorage["clickychrome_keys"];
-  delete localStorage["clickychrome_badgeColor"];
-  delete localStorage["clickychrome_currentSite"];
-  delete localStorage["clickychrome_currentChart"];
-  delete localStorage["clickychrome_spyType"];
-  delete localStorage["clickychrome_goalNotification"];
-  delete localStorage["clickychrome_goalTimeout"];
-  chrome.tabs.getSelected(null, function(tab){
-    chrome.tabs.remove(tab.id);
-  });
-  chrome.extension.getBackgroundPage().ClickyChrome.Background.init();
-};
-
-ClickyChrome.Options.buildSiteTable = function(){
-  $("tbody").empty();
-  for (var i = 0, c = this.vars.nameArray.length; i < c; i++){
-    var string = '<tr><td><div class="input_name"><img title="Drag to re-order" class="grip" src="/images/grippy.png" />'+
-      this.vars.nameArray[i]+'</div><div class="input_name off"><input class="input_name" name="name[]" value="'+
-      this.vars.nameArray[i]+'" /></div></td><td><div class="input_url">'+this.vars.urlArray[i]+'</div><div class="input_url off">'+
-      '<input class="input_url" name="url[]" value="'+this.vars.urlArray[i]+'" /></div></td><td><div class="input_id">'+
-      this.vars.idArray[i]+'</div><div class="input_id off"><input class="input_id" name="id[]" value="'+this.vars.idArray[i]+
-      '" /></div></td><td><div class="input_key">'+this.vars.keyArray[i]+'</div><div class="input_key off"><input class="input_key" name="key[]" value="'+
-      this.vars.keyArray[i]+
-      '" /></div></td><td class="edit"><span><a href="#" class="edit_site">edit</a> | </span><a href="#" class="remove_site">remove</a></td></tr>';
-    $("tbody").append(string);
-  }
-  this.checkSites();
-};
-
-ClickyChrome.Options.checkSites = function(){
-  var num = $('tbody tr[id!=reminder]').length;
-  if (num == 0){
-    var string = '<tr id="reminder"><td colspan="5">You must add at least one site from your Clicky account to use this extension.</td></tr>';
-    $("tbody").append(string);
-  }
-  else{
-    $("#reminder").remove();
-  }
-};
-
-ClickyChrome.Options.resetCurrent = function(){
-  localStorage["clickychrome_currentSite"] = this.vars.idArray[0]+','+this.vars.keyArray[0]+','+this.vars.nameArray[0];
-};
-
-ClickyChrome.Options.checkVis = function(el){
-  if (el.val() == 'no') el.parent("li").next().hide();
-  else el.parent("li").next().show();
-};
-
-// Init
-$(function(){
-  ClickyChrome.Options.init();
-});
+ClickyChrome.Options.checkVis = function (el) {
+  const timeoutLi = el.closest('li').next('li')
+  if (el.val() === 'no') timeoutLi.hide()
+  else timeoutLi.show()
+}

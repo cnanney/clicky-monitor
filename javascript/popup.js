@@ -1,338 +1,375 @@
 /**
- * Clicky Monitor
+ * Clicky Monitor - Popup Script (MV3 Compatible)
  * --------------
- * A Chrome extension for Clicky Web Analytics
- *
- * https://clicky.com
- * https://github.com/cnanney/clicky-monitor
- *
- * Licensed under MIT
- * http://www.opensource.org/licenses/mit-license.php
+ * Attaches to the global ClickyChrome object. Debug logging always on.
  */
 
-var ClickyChrome = ClickyChrome || {};
+ClickyChrome.Popup = {}
 
-ClickyChrome.Popup = {};
+$(async function () {
+  console.log('[Popup] Script loaded and DOM ready')
 
-ClickyChrome.Popup.debug = chrome.extension.getBackgroundPage().ClickyChrome.Background.debug;
-
-$(function(){
-  // Site select
-  $("#site-list a").live("click", function(){
-    ClickyChrome.Popup.siteSelect($(this))
-  });
-  // Date select
-  $("#date-list a").live("click", function(){
-    ClickyChrome.Popup.dateSelect($(this))
-  });
-  // Chart select
-  $("#chart-list a").live("click", function(){
-    ClickyChrome.Popup.chartSelect($(this))
-  });
-
-  // Basics tab
-  $("#basics_tab").click(function(){
-    ClickyChrome.Popup.basicsTab($(this))
-  });
-  // Visitors tab
-  $("#visitors_tab").click(function(){
-    ClickyChrome.Popup.visitorsTab($(this))
-  });
-  // Charts tab
-  $("#charts_tab").click(function(){
-    ClickyChrome.Popup.chartsTab($(this))
-  });
-
-  // External links
-  $("a.external, #chart a").live("click", function(){
+  // --- Event Listeners ---
+  $('#site-list').on('click', 'a', async function (e) {
+    e.preventDefault()
+    await ClickyChrome.Popup.siteSelect($(this))
+  })
+  $('#date-list').on('click', 'a', async function (e) {
+    e.preventDefault()
+    await ClickyChrome.Popup.dateSelect($(this))
+  })
+  $('#chart-list').on('click', 'a', async function (e) {
+    e.preventDefault()
+    await ClickyChrome.Popup.chartSelect($(this))
+  })
+  $('#basics_tab').on('click', async function (e) {
+    e.preventDefault()
+    await ClickyChrome.Popup.basicsTab($(this))
+  })
+  $('#visitors_tab').on('click', async function (e) {
+    e.preventDefault()
+    await ClickyChrome.Popup.visitorsTab($(this))
+  })
+  $('#charts_tab').on('click', async function (e) {
+    e.preventDefault()
+    await ClickyChrome.Popup.chartsTab($(this))
+  })
+  $('body').on('click', 'a.external, #chart a', function (e) {
+    e.preventDefault()
     ClickyChrome.Popup.externalLink($(this))
-  });
-
-  // Open options page
-  $("#show_options").live("click", function(){
-    chrome.extension.getBackgroundPage().ClickyChrome.Background.showOptions()
-  });
-
-  // Reset idle timer
-  chrome.extension.getBackgroundPage().ClickyChrome.Background.resetIdle();
-
-  // Menu interactions
-  $("#site-select").click(function(){
-    $("#site-list").show();
-    $("#date-list").hide();
-    $("#chart-list").hide();
-    return false;
-  });
-
-  $("#date-select").click(function(){
-    if ($(this).hasClass('off') === false){
-      $("#date-list").show();
-      $("#site-list").hide();
+  })
+  $('#show_options').on('click', function (e) {
+    e.preventDefault()
+    chrome.runtime.sendMessage({ action: 'showOptions' })
+  })
+  $('#site-select').on('click', function (e) {
+    e.preventDefault()
+    $('#site-list').show()
+    $('#date-list').hide()
+    $('#chart-list').hide()
+  })
+  $('#date-select').on('click', function (e) {
+    e.preventDefault()
+    if (!$(this).hasClass('off')) {
+      $('#date-list').show()
+      $('#site-list').hide()
+      $('#chart-list').hide()
     }
-    return false;
-  });
-
-  $("#chart-select").click(function(){
-    if ($(this).hasClass('off') === false){
-      $("#chart-list").show();
-      $("#site-list").hide();
+  })
+  $('#chart-select').on('click', function (e) {
+    e.preventDefault()
+    if (!$(this).hasClass('off')) {
+      $('#chart-list').show()
+      $('#site-list').hide()
+      $('#date-list').hide()
     }
-    return false;
-  });
+  })
+  $('#wrapper').on('click', function (e) {
+    if (!$(e.target).closest('.dropdown').length) {
+      ClickyChrome.Popup.hideMenus()
+    }
+  })
 
-  $("#wrapper").click(function(){
-    ClickyChrome.Popup.hideMenus();
-  });
+  // Trigger background check on popup open
+  console.log('[Popup] User opened popup - triggering API check')
+  chrome.runtime.sendMessage({ action: 'triggerApiCheck' })
 
-});
+  // Initialize the popup
+  console.log('[Popup] Starting initialization')
+  await ClickyChrome.Popup.init()
+})
 
-/**
- * Variables
- */
 ClickyChrome.Popup.vars = {
   currentPage: 'basics',
   dateNames: {
-    "today": "Today",
-    "yesterday": "Yesterday",
-    "last-7-days": "Last 7 Days",
-    "last-30-days": "Last 30 Days"
+    today: 'Today',
+    yesterday: 'Yesterday',
+    'last-7-days': 'Last 7 Days',
+    'last-30-days': 'Last 30 Days',
   },
-  chartNames: {
-    "visitors": "Visitors",
-    "actions": "Actions",
-    "web-browsers": "Browsers"
-  },
-  nameArray: [],
-  idArray: [],
-  keyArray: []
-};
-
-/**
- * Start everything up
- */
-ClickyChrome.Popup.init = function(){
-  if (typeof localStorage["clickychrome_names"] == "undefined"){
-    this.hideLoader();
-    var html = '<p id="no_site">You must <a id="show_options" href="#">add at least one site</a> to use this extension.</p>';
-    $("#main_tabs").hide();
-    $("#content").html(html);
-  }
-  else{
-    localStorage["clickychrome_currentDate"] = 'today';
-
-    if (localStorage["clickychrome_names"].indexOf(',') == -1){
-      this.vars.nameArray[0] = localStorage["clickychrome_names"];
-      this.vars.idArray[0] = localStorage["clickychrome_ids"];
-      this.vars.keyArray[0] = localStorage["clickychrome_keys"];
-    }
-    else{
-      this.vars.nameArray = localStorage["clickychrome_names"].split(',');
-      this.vars.idArray = localStorage["clickychrome_ids"].split(',');
-      this.vars.keyArray = localStorage["clickychrome_keys"].split(',');
-    }
-
-    if (typeof localStorage["clickychrome_currentSite"] == "undefined"){
-      localStorage["clickychrome_currentSite"] = this.vars.idArray[0]+','+this.vars.keyArray[0]+','+this.vars.nameArray[0];
-    }
-    this.buildMenus();
-    this.buildPage(this.vars.currentPage);
-  }
-  // Assign current graph to menu
-  $("#chart-list a").each(function(){
-    if ($(this).attr("id") == localStorage["clickychrome_currentChart"]) $(this).addClass("current");
-  });
-};
-
-/**
- * Builds site dropdown menu
- */
-ClickyChrome.Popup.buildMenus = function(){
-  this.showMenuButtons();
-  var siteInfo = localStorage["clickychrome_currentSite"].split(',');
-  $("#site-select span").text(siteInfo[2]);
-  for (var i = 0, c = this.vars.idArray.length; i < c; i++){
-    var string = '<li><a href="#" id="'+this.vars.idArray[i]+','+this.vars.keyArray[i]+','+this.vars.nameArray[i]+'"';
-    if (siteInfo[0] == this.vars.idArray[i]){
-      string += ' class="current"';
-    }
-    string += '">'+this.vars.nameArray[i]+'</a></li>';
-    $("#site-list").append(string);
-  }
-};
-
-/**
- * Hides loading graphic
- */
-ClickyChrome.Popup.hideLoader = function(){
-  $("#loading").hide();
-};
-
-/**
- * Shows loading graphic
- */
-ClickyChrome.Popup.showLoader = function(){
-  $("#loading").show();
-};
-
-/**
- * Hides menu dropdowns
- */
-ClickyChrome.Popup.hideMenus = function(){
-  $("#site-list,#date-list,#chart-list").hide();
-};
-
-/**
- * Menu buttons are hidden unless there is an active site
- */
-ClickyChrome.Popup.showMenuButtons = function(){
-  $("#date-select-container,#site-select-container,#chart-select-container").show();
-};
-
-/**
- * Builds requsted page URL
- *
- * @param {string} page
- *    Which page to build
- */
-ClickyChrome.Popup.buildPage = function(page){
-  if (ClickyChrome.Popup.debug) console.log('Begin "'+page+'" page build');
-  ClickyChrome.Build[page]();
-};
-
-/**
- * Loads HTML into #content div
- *
- * @param {string} html
- *    HTML to load
- */
-ClickyChrome.Popup.loadHtml = function(html){
-  if (html){
-    $("#content").html(html);
-    if (ClickyChrome.Popup.debug) console.log('HTML loaded');
-  }
-  this.hideLoader();
-};
-
-/**
- * Handles opening external links
- *
- * @param {string} link
- *    URL to open
- */
-ClickyChrome.Popup.externalLink = function(link){
-  var windowUrl = link.attr("href");
-  ClickyChrome.Functions.openUrl(windowUrl);
-};
-
-/**
- * Sets current date and chart on page load
- */
-ClickyChrome.Popup.setDateName = function(){
-  $("#date-select span").text(this.vars.dateNames[localStorage["clickychrome_currentDate"]]);
-};
-ClickyChrome.Popup.setChartName = function(){
-  $("#chart-select span").text(this.vars.chartNames[localStorage["clickychrome_currentChart"]]);
-};
-
-
-/*
- * MENU SELECTIONS
- * ---------------------------------------------------------------------------------------------------------------------------*/
-
-ClickyChrome.Popup.siteSelect = function(site){
-  this.hideMenus();
-
-  var text = site.text(),
-    id = site.attr('id');
-  $("#site-select span").text(text);
-  $("#site-list a").removeClass('current');
-  site.addClass('current');
-
-  localStorage["clickychrome_currentSite"] = id;
-  this.showLoader();
-
-  this.buildPage(this.vars.currentPage);
-  //chrome.extension.getBackgroundPage().ClickyChrome.Background.resetGoalStart();
-  chrome.extension.getBackgroundPage().ClickyChrome.Background.updateTitle(id.split(','));
-};
-
-ClickyChrome.Popup.dateSelect = function(date){
-  this.hideMenus();
-
-  var text = date.text();
-  $("#date-select span").text(text);
-  $("#date-list a").removeClass('current');
-  date.addClass('current');
-
-  localStorage["clickychrome_currentDate"] = date.attr('id');
-  this.showLoader();
-
-  this.buildPage(this.vars.currentPage);
-};
-
-ClickyChrome.Popup.chartSelect = function(chart){
-  this.hideMenus();
-
-  var text = chart.text();
-  $("#chart-select span").text(text);
-  $("#chart-list a").removeClass('current');
-  chart.addClass('current');
-
-  localStorage["clickychrome_currentChart"] = chart.attr('id');
-  this.showLoader();
-
-  this.buildPage(this.vars.currentPage);
-};
-
-/*
- * TABS
- * ---------------------------------------------------------------------------------------------------------------------------*/
-
-ClickyChrome.Popup.basicsTab = function(tab){
-  this.hideMenus();
-  this.vars.currentPage = 'basics';
-
-  $("#main_tabs a").removeClass('active');
-  tab.addClass('active');
-
-  this.setDateName();
-  $("#date-select").removeClass('off');
-  $("#chart-select").addClass('off');
-
-  this.showLoader();
-  this.buildPage(this.vars.currentPage);
-};
-
-ClickyChrome.Popup.visitorsTab = function(tab){
-  this.hideMenus();
-  this.vars.currentPage = 'visitors';
-
-  $("#main_tabs a").removeClass('active');
-  tab.addClass('active');
-
-  $("#date-select").addClass('off');
-  $("#chart-select").addClass('off');
-
-  this.showLoader();
-  this.buildPage(this.vars.currentPage);
+  chartNames: { visitors: 'Visitors', actions: 'Actions', 'web-browsers': 'Browsers' },
 }
 
-ClickyChrome.Popup.chartsTab = function(tab){
-  this.hideMenus();
-  this.vars.currentPage = 'charts';
+ClickyChrome.Popup.init = async function () {
+  console.log('[Popup] Initialization started')
+  try {
+    const data = await chrome.storage.local.get([
+      'clickychrome_names',
+      'clickychrome_ids',
+      'clickychrome_keys',
+      'clickychrome_currentSite',
+      'clickychrome_currentDate',
+      'clickychrome_currentChart',
+    ])
 
-  $("#main_tabs a").removeClass('active');
-  tab.addClass('active');
+    if (!data.clickychrome_names || !data.clickychrome_ids || !data.clickychrome_keys) {
+      this.hideLoader()
+      const html =
+        '<p id="no_site">You must <a id="show_options" href="#">add at least one site</a> via the Options page.</p>'
+      $('#main_tabs').hide()
+      $('#dropdowns').hide()
+      $('#content').html(html)
+      console.log('[Popup] No sites configured - showing setup message')
+      return
+    }
 
-  this.setChartName();
-  $("#date-select").addClass('off');
-  $("#chart-select").removeClass('off');
+    const currentDate = data.clickychrome_currentDate || 'today'
+    const currentChart = data.clickychrome_currentChart || 'visitors'
+    await chrome.storage.local.set({
+      clickychrome_currentDate: currentDate,
+      clickychrome_currentChart: currentChart,
+    })
 
-  this.showLoader();
-  this.buildPage(this.vars.currentPage);
-};
+    const nameArray = data.clickychrome_names.split(',')
+    const idArray = data.clickychrome_ids.split(',')
+    const keyArray = data.clickychrome_keys.split(',')
+    let currentSite = data.clickychrome_currentSite
+    const currentSiteInfo = currentSite ? currentSite.split(',') : null
+    let isValidCurrentSite = false
+    if (currentSiteInfo && currentSiteInfo.length === 3) {
+      const siteIndex = idArray.indexOf(currentSiteInfo[0])
+      if (
+        siteIndex > -1 &&
+        keyArray[siteIndex] === currentSiteInfo[1] &&
+        nameArray[siteIndex] === currentSiteInfo[2]
+      ) {
+        isValidCurrentSite = true
+      }
+    }
+    if (!isValidCurrentSite && nameArray.length > 0) {
+      currentSite = `${idArray[0]},${keyArray[0]},${nameArray[0]}`
+      await chrome.storage.local.set({ clickychrome_currentSite: currentSite })
+      console.log('[Popup] Setting default current site:', currentSite)
+    }
 
-// Init
-$(function(){
-  ClickyChrome.Popup.init();
-});
+    await this.buildMenus(nameArray, idArray, keyArray, currentSite)
+    this.setDateName(currentDate)
+    this.setChartName(currentChart)
+    this.updateTabAndControls(this.vars.currentPage)
+    await this.buildPage(this.vars.currentPage)
+  } catch (error) {
+    console.error('[Popup] Error during initialization:', error)
+    this.hideLoader()
+    $('#content').html('<p id="no_site">An error occurred loading extension data.</p>')
+  }
+}
+
+ClickyChrome.Popup.buildMenus = async function (nameArray, idArray, keyArray, currentSite) {
+  this.showMenuButtons()
+  const siteInfo = currentSite.split(',')
+  $('#site-select span').text(siteInfo[2])
+  $('#site-list').empty()
+
+  for (let i = 0; i < idArray.length; i++) {
+    const siteValue = `${idArray[i]},${keyArray[i]},${nameArray[i]}`
+    let itemClass = siteInfo[0] === idArray[i] ? ' class="current"' : ''
+    const string = `<li><a href="#" id="${siteValue.replace(/"/g, '"')}"${itemClass}>${
+      nameArray[i]
+    }</a></li>`
+    $('#site-list').append(string)
+  }
+  console.log('[Popup] Site menu built with', idArray.length, 'sites')
+
+  const currentDate = await this.getCurrentDate()
+  const currentChart = await this.getCurrentChart()
+  $('#date-list a').removeClass('current')
+  $(`#date-list a#${currentDate}`).addClass('current')
+  $('#chart-list a').removeClass('current')
+  $(`#chart-list a#${currentChart}`).addClass('current')
+}
+
+ClickyChrome.Popup.hideLoader = function () {
+  $('#loading').hide()
+}
+ClickyChrome.Popup.showLoader = function () {
+  $('#loading').show()
+}
+ClickyChrome.Popup.hideMenus = function () {
+  $('#site-list, #date-list, #chart-list').hide()
+}
+ClickyChrome.Popup.showMenuButtons = function () {
+  $('#date-select-container, #site-select-container, #chart-select-container').show()
+}
+
+ClickyChrome.Popup.buildPage = async function (page) {
+  console.log(`[Popup] Building "${page}" page`)
+  this.showLoader()
+  try {
+    // Get common data needed by build functions
+    const currentSite = (await chrome.storage.local.get('clickychrome_currentSite'))
+      .clickychrome_currentSite
+    const currentDate = await this.getCurrentDate()
+    const currentChart = await this.getCurrentChart()
+
+    // Call the appropriate build function with the correct arguments
+    switch (page) {
+      case 'basics':
+        if (typeof ClickyChrome.Build?.basics === 'function') {
+          await ClickyChrome.Build.basics(currentSite, currentDate)
+        } else {
+          throw new Error('Build.basics function not found.')
+        }
+        break
+      case 'visitors':
+        if (typeof ClickyChrome.Build?.visitors === 'function') {
+          // Visitors build function only needs currentSite
+          await ClickyChrome.Build.visitors(currentSite)
+        } else {
+          throw new Error('Build.visitors function not found.')
+        }
+        break
+      case 'charts':
+        if (typeof ClickyChrome.Build?.charts === 'function') {
+          // Charts build function needs currentSite and currentChart
+          await ClickyChrome.Build.charts(currentSite, currentChart)
+        } else {
+          throw new Error('Build.charts function not found.')
+        }
+        break
+      default:
+        console.error(`Build function for page "${page}" not found.`)
+        this.loadHtml('<p>Error: Content builder not found.</p>')
+        // Skip hiding loader on error? No, loadHtml handles it.
+        return // Exit if page type is unknown
+    }
+  } catch (error) {
+    console.error(`[Popup] Error building page "${page}":`, error)
+    this.loadHtml(`<p>Error loading content for ${page}: ${error.message}.</p>`) // Show more specific error
+  }
+  // Hiding loader is handled by loadHtml or within the Build functions if needed
+}
+
+ClickyChrome.Popup.loadHtml = function (html) {
+  if (html !== false && typeof html === 'string') {
+    $('#content').html(html)
+    console.log('[Popup] HTML content loaded into #content')
+  } else if (html === false) {
+    console.warn('[Popup] loadHtml called with false, indicating potential error upstream')
+    $('#content').html('<p>Failed to load content.</p>')
+  } else {
+    console.warn('[Popup] loadHtml called with invalid content:', html)
+    $('#content').html('<p>Invalid content received.</p>')
+  }
+  this.hideLoader()
+}
+
+ClickyChrome.Popup.externalLink = function (link) {
+  const windowUrl = link.attr('href')
+  if (windowUrl) {
+    chrome.tabs.create({ url: windowUrl, selected: true })
+    console.log('[Popup] Opening external link:', windowUrl)
+  } else {
+    console.warn('[Popup] Attempted to open link with no href:', link)
+  }
+}
+
+ClickyChrome.Popup.getCurrentDate = async function () {
+  const data = await chrome.storage.local.get('clickychrome_currentDate')
+  return data.clickychrome_currentDate || 'today'
+}
+ClickyChrome.Popup.getCurrentChart = async function () {
+  const data = await chrome.storage.local.get('clickychrome_currentChart')
+  return data.clickychrome_currentChart || 'visitors'
+}
+ClickyChrome.Popup.setDateName = function (dateKey) {
+  const dateText = this.vars.dateNames[dateKey] || 'Select Date'
+  $('#date-select span').text(dateText)
+}
+ClickyChrome.Popup.setChartName = function (chartKey) {
+  const chartText = this.vars.chartNames[chartKey] || 'Select Chart'
+  $('#chart-select span').text(chartText)
+}
+ClickyChrome.Popup.updateTabAndControls = function (page) {
+  $('#main_tabs a').removeClass('active')
+  $(`#${page}_tab`).addClass('active')
+  switch (page) {
+    case 'basics':
+      $('#date-select').removeClass('off')
+      $('#chart-select').addClass('off')
+      break
+    case 'visitors':
+      $('#date-select').addClass('off')
+      $('#chart-select').addClass('off')
+      this.setDateName('today')
+      break
+    case 'charts':
+      $('#date-select').addClass('off')
+      $('#chart-select').removeClass('off')
+      this.setDateName('last-30-days')
+      break
+  }
+  console.log(`[Popup] UI controls updated for page: ${page}`)
+}
+
+ClickyChrome.Popup.siteSelect = async function (siteLink) {
+  this.hideMenus()
+  const text = siteLink.text()
+  const id = siteLink.attr('id')
+  if (!id) {
+    console.error('[Popup] Selected site link has no ID attribute')
+    return
+  }
+  $('#site-select span').text(text)
+  $('#site-list a').removeClass('current')
+  siteLink.addClass('current')
+  try {
+    await chrome.storage.local.set({ clickychrome_currentSite: id })
+    console.log('[Popup] Current site saved:', id)
+    await this.buildPage(this.vars.currentPage)
+  } catch (error) {
+    console.error('[Popup] Error saving current site:', error)
+  }
+}
+
+ClickyChrome.Popup.dateSelect = async function (dateLink) {
+  this.hideMenus()
+  const text = dateLink.text()
+  const id = dateLink.attr('id')
+  $('#date-select span').text(text)
+  $('#date-list a').removeClass('current')
+  dateLink.addClass('current')
+  try {
+    await chrome.storage.local.set({ clickychrome_currentDate: id })
+    console.log('[Popup] Current date saved:', id)
+    await this.buildPage(this.vars.currentPage)
+  } catch (error) {
+    console.error('[Popup] Error saving current date:', error)
+  }
+}
+
+ClickyChrome.Popup.chartSelect = async function (chartLink) {
+  this.hideMenus()
+  const text = chartLink.text()
+  const id = chartLink.attr('id')
+  $('#chart-select span').text(text)
+  $('#chart-list a').removeClass('current')
+  chartLink.addClass('current')
+  try {
+    await chrome.storage.local.set({ clickychrome_currentChart: id })
+    console.log('[Popup] Current chart saved:', id)
+    await this.buildPage(this.vars.currentPage)
+  } catch (error) {
+    console.error('[Popup] Error saving current chart:', error)
+  }
+}
+
+ClickyChrome.Popup.basicsTab = async function (tab) {
+  this.hideMenus()
+  this.vars.currentPage = 'basics'
+  this.updateTabAndControls(this.vars.currentPage)
+  this.setDateName(await this.getCurrentDate())
+  await this.buildPage(this.vars.currentPage)
+}
+ClickyChrome.Popup.visitorsTab = async function (tab) {
+  this.hideMenus()
+  this.vars.currentPage = 'visitors'
+  this.updateTabAndControls(this.vars.currentPage)
+  await this.buildPage(this.vars.currentPage)
+}
+ClickyChrome.Popup.chartsTab = async function (tab) {
+  this.hideMenus()
+  this.vars.currentPage = 'charts'
+  this.updateTabAndControls(this.vars.currentPage)
+  this.setChartName(await this.getCurrentChart())
+  await this.buildPage(this.vars.currentPage)
+}

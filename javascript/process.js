@@ -1,139 +1,202 @@
 /**
- * Clicky Monitor
+ * Clicky Monitor - Data Processing Script (MV3 Compatible)
  * --------------
- * A Chrome extension for Clicky Web Analytics
- *
- * https://clicky.com
- * https://github.com/cnanney/clicky-monitor
- *
- * Licensed under MIT
- * http://www.opensource.org/licenses/mit-license.php
+ * Functions to process raw API data into usable formats. Debug logging always on.
+ * Attaches to the global ClickyChrome object.
  */
 
-var ClickyChrome = ClickyChrome || {};
-
-ClickyChrome.Process = {};
+ClickyChrome.Process = {}
 
 /**
  * Processes API basics info
  *
- * @param {array} data
- *    API response array
- *
- * @return object
+ * @param {array} data - Raw API response array for basics types.
+ * @returns {object} - Processed info object.
  */
-ClickyChrome.Process.basics = function(data){
-  var info = {
-    online: ClickyChrome.Functions.addCommas(data[0].dates[0].items[0].value),
-    visitors: ClickyChrome.Functions.addCommas(data[1].dates[0].items[0].value),
-    actions: ClickyChrome.Functions.addCommas(data[2].dates[0].items[0].value),
-    averageActions: ClickyChrome.Functions.addCommas(data[3].dates[0].items[0].value),
-    time: data[4].dates[0].items[0].value,
-    averageTime: data[5].dates[0].items[0].value,
-    bounce: data[6].dates[0].items[0].value,
-    goals: function(data){
-      var goalCount = 0;
-      if (typeof (data[7].dates[0].items[0]) == 'object'){
-        for (var i = 0; i < data[7].dates[0].items.length; i++){
-          goalCount += parseFloat(data[7].dates[0].items[i].value);
-        }
-      }
-      return ClickyChrome.Functions.addCommas(goalCount);
-    }(data)
-  };
-  return info;
-};
+ClickyChrome.Process.basics = function (data) {
+  console.log('[Process] Processing basics data') // Always log
+  const findValue = (type) => {
+    const item = data.find((d) => d.type === type)
+    const value = item?.dates?.[0]?.items?.[0]?.value
+    return value !== undefined ? value : 'N/A'
+  }
+  const findGoalSum = () => {
+    const item = data.find((d) => d.type === 'goals')
+    let goalCount = 0
+    if (item?.dates?.[0]?.items && Array.isArray(item.dates[0].items)) {
+      item.dates[0].items.forEach((goalItem) => {
+        goalCount += parseFloat(goalItem.value) || 0
+      })
+    }
+    return goalCount
+  }
+
+  const info = {
+    online: ClickyChrome.Functions.addCommas(findValue('visitors-online') ?? 0),
+    visitors: ClickyChrome.Functions.addCommas(findValue('visitors') ?? 0),
+    actions: ClickyChrome.Functions.addCommas(findValue('actions') ?? 0),
+    averageActions: ClickyChrome.Functions.addCommas(findValue('actions-average') ?? 0),
+    time: findValue('time-total-pretty') || 'N/A',
+    averageTime: findValue('time-average-pretty') || 'N/A',
+    bounce: findValue('bounce-rate') ?? 'N/A',
+    goals: ClickyChrome.Functions.addCommas(findGoalSum()),
+  }
+  console.log('[Process] Processed basics info:', info) // Always log
+  return info
+}
 
 /**
  * Processes API visitor list info
  *
- * @param {array} data
- *    API response array
- *
- *  @return array
+ * @param {array} items - The 'items' array from the 'visitors-list' API response type.
+ * @param {array} siteInfo - Array containing [siteId, siteKey, siteName] for link generation.
+ * @returns {array} - Processed visitor info array.
  */
-ClickyChrome.Process.visitors = function(data){
-  var info = [],
-    siteInfo = localStorage["clickychrome_currentSite"].split(',');
-  for (var i = 0, count = data.length; i < count; i++){
-    info[i] = {
-      ipLink: 'http://getclicky.com/stats/visitors?site_id='+siteInfo[0]+'&ip_address='+data[i].ip_address,
-      contentUrl: function(data){
-        var urlParts = data.landing_page.split('/'),
-          contentUrl = 'http://getclicky.com/stats/visitors?site_id='+siteInfo[0]+'&href=';
-        for (var j = 3, c = urlParts.length; j < c; j++){
-          contentUrl += '/'+urlParts[j];
-        }
-        return contentUrl;
-      }(data[i]),
-      flagImg: typeof data[i].country_code == "undefined" ? "/images/icon_world.png" : 'http://static.getclicky.com/media/flags/'+data[i].country_code+'.gif',
-      geoLoc: typeof data[i].geolocation == "undefined" ? "Planet Earth" : data[i].geolocation,
-      customName: data[i].custom && data[i].custom.username ? data[i].custom.username : false,
-      goals: data[i].goals && data[i].goals.completed ? true : false,
-      ip: data[i].ip_address,
-      time: data[i].time_pretty,
-      timeTotal: ClickyChrome.Functions.abvTime(data[i].time_total),
-      statsUrl: data[i].stats_url,
-      actions: ClickyChrome.Functions.addCommas(data[i].actions),
-      landed: function(data){
-        var qs = data.landing_page.indexOf('?'),
-          lp = (qs == -1) ? data.landing_page : data.landing_page.substring(0, qs);
-        return lp;
-      }(data[i]),
-      referrerDomain: typeof data[i].referrer_domain == "undefined" ? false : data[i].referrer_domain,
-      referrerUrl: typeof data[i].referrer_url == "undefined" ? false : data[i].referrer_url,
-      referrerSearch: typeof data[i].referrer_search == "undefined" ? false : data[i].referrer_search
-    };
+ClickyChrome.Process.visitors = function (items, siteInfo) {
+  console.log('[Process] Processing visitors list data') // Always log
+  if (!items || !Array.isArray(items)) return []
+  if (!siteInfo || siteInfo.length < 1) {
+    console.error('[Process] Site Info not provided to Process.visitors for link generation')
+    return []
   }
-  return info;
-};
+  const siteId = siteInfo[0]
+
+  const processedVisitors = items.map((data) => {
+    const visitor = {
+      ipLink: `https://clicky.com/stats/visitors?site_id=${siteId}&ip_address=${
+        data.ip_address || ''
+      }`,
+      contentUrl: (() => {
+        /* ... (same logic as before) ... */
+        if (!data.landing_page) return '#'
+        try {
+          const url = new URL(data.landing_page)
+          const path = url.pathname + url.search + url.hash
+          return `https://clicky.com/stats/visitors?site_id=${siteId}&href=${encodeURIComponent(
+            path
+          )}`
+        } catch (e) {
+          const path = data.landing_page.startsWith('/')
+            ? data.landing_page
+            : `/${data.landing_page}`
+          return `https://clicky.com/stats/visitors?site_id=${siteId}&href=${encodeURIComponent(
+            path
+          )}`
+        }
+      })(),
+      statsUrl: data.stats_url || '#',
+      flagImg:
+        data.country_code && data.country_code !== 'xx'
+          ? `https://static.clicky.com/media/flags/${data.country_code.toLowerCase()}.gif`
+          : chrome.runtime.getURL('/images/icon_world.png'),
+      geoLoc: data.geolocation || 'Unknown Location',
+      customName: data.custom?.username || false,
+      goals: !!(data.goals && data.goals.completed),
+      ip: data.ip_address || 'N/A',
+      time: data.time_pretty || 'N/A',
+      timeTotal: ClickyChrome.Functions.abvTime(data.time_total || 0),
+      actions: ClickyChrome.Functions.addCommas(data.actions || 0),
+      landed: (() => {
+        /* ... (same logic as before) ... */
+        if (!data.landing_page) return 'N/A'
+        try {
+          const url = new URL(data.landing_page)
+          return url.pathname
+        } catch (e) {
+          return data.landing_page.split('?')[0]
+        }
+      })(),
+      referrerDomain: data.referrer_domain || false,
+      referrerUrl: data.referrer_url || false,
+      referrerSearch: data.referrer_search || false,
+    }
+    return visitor
+  })
+  console.log('[Process] Processed visitors list info:', processedVisitors) // Always log
+  return processedVisitors
+}
 
 /**
- * Processes API goal info for notifications
+ * Processes API goal info for notifications.
+ * Filters out goals already logged/notified within the expiry window.
  *
- * @param {array} data
- *    API response array
- *
- * @return object
+ * @param {array} apiGoalItems - The 'items' array from API response (likely visitors-list with goal=*).
+ * @param {object} currentLog - The current goal log object read from storage.
+ * @returns {object} - An object containing { newGoals: {...}, updatedLog: {...} }
  */
-ClickyChrome.Process.goals = function(data){
-  var log = chrome.extension.getBackgroundPage().ClickyChrome.Background.vars.goalLog,
-    newIds = {},
-    count = data.length;
+ClickyChrome.Process.goals = function (apiGoalItems, currentLog) {
+  console.log('[Process] Processing goal data for notifications') // Always log
+  const newGoalsForNotification = {}
+  const updatedLog = { ...currentLog } // Create a copy to modify
 
-  for (var i = 0; i < count; i++){
-    newIds[data[i].session_id] = {
-      cc: data[i].country_code || 'none',
-      ip: data[i].ip_address,
-      visitor: data[i].custom && data[i].custom.username ? data[i].custom.username : data[i].ip_address,
-      custom: data[i].custom && data[i].custom.username ? 1 : 0,
-      geo: data[i].geolocation || 'Planet Earth',
-      url: data[i].stats_url,
-      time: data[i].time_pretty,
-      goals: data[i].goals.completed.join(', '),
-      value: data[i].goals.revenue,
-      id: data[i].session_id,
-      timestamp: data[i].time
-    };
+  if (!apiGoalItems || !Array.isArray(apiGoalItems)) {
+    return { newGoals: {}, updatedLog }
   }
 
-  // Delete repeats, store new
-  for (var id in newIds){
-    if (newIds.hasOwnProperty(id)){
-      if (log.hasOwnProperty(id)){
-        if (newIds[id].goals != log[id].goals){
-          log[id].goals = newIds[id].goals;
-        }
-        else{
-          delete newIds[id];
-        }
-      }
-      else{
-        log[id] = newIds[id];
-      }
+  apiGoalItems.forEach((item) => {
+    if (!item.goals?.completed || item.goals.completed.length === 0) return
+    const sessionId = item.session_id
+    if (!sessionId) {
+      console.warn('[Process] Goal item missing session_id:', item)
+      return
     }
-  }
 
-  chrome.extension.getBackgroundPage().ClickyChrome.Background.updateGoalLog(log);
-  return ClickyChrome.Functions.objectSize(newIds) != 0 ? newIds : false;
-};
+    const goalNames = item.goals.completed.join(', ')
+    const timestamp = parseInt(item.time, 10)
+    if (isNaN(timestamp)) {
+      console.warn('[Process] Goal item missing valid time:', item)
+      return
+    }
+
+    if (updatedLog.hasOwnProperty(sessionId)) {
+      if (updatedLog[sessionId].goals !== goalNames) {
+        console.log(
+          `[Process] Goal list changed for session ${sessionId}: "${updatedLog[sessionId].goals}" -> "${goalNames}"`
+        ) // Always log
+        updatedLog[sessionId].goals = goalNames
+        updatedLog[sessionId].timestamp = timestamp
+        newGoalsForNotification[sessionId] = {
+          /* ... (assemble goal info as before) ... */ cc: item.country_code || 'none',
+          ip: item.ip_address || 'N/A',
+          visitor: item.custom?.username || item.ip_address || 'Unknown',
+          custom: !!item.custom?.username,
+          geo: item.geolocation || 'Unknown',
+          url: item.stats_url || '#',
+          time: item.time_pretty || 'N/A',
+          goals: goalNames,
+          value: item.goals.revenue || '',
+          id: sessionId,
+          timestamp: timestamp,
+        }
+      } else {
+        if (timestamp > updatedLog[sessionId].timestamp) updatedLog[sessionId].timestamp = timestamp
+        console.log(`[Process] Session ${sessionId} already logged with same goals, skipping notification`) // Always log
+      }
+    } else {
+      console.log(`[Process] New goal session found: ${sessionId}`) // Always log
+      const newEntry = {
+        /* ... (assemble goal info as before) ... */ cc: item.country_code || 'none',
+        ip: item.ip_address || 'N/A',
+        visitor: item.custom?.username || item.ip_address || 'Unknown',
+        custom: !!item.custom?.username,
+        geo: item.geolocation || 'Unknown',
+        url: item.stats_url || '#',
+        time: item.time_pretty || 'N/A',
+        goals: goalNames,
+        value: item.goals.revenue || '',
+        id: sessionId,
+        timestamp: timestamp,
+      }
+      updatedLog[sessionId] = newEntry
+      newGoalsForNotification[sessionId] = newEntry
+    }
+  })
+
+  console.log(
+    '[Process] Finished processing goals. New for notification:',
+    newGoalsForNotification,
+    'Updated log:',
+    updatedLog
+  ) // Always log
+  return { newGoals: newGoalsForNotification, updatedLog: updatedLog }
+}

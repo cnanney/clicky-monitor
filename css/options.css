@@ -61,9 +61,9 @@ span, td.edit{font-size:11px;font-weight:normal;}
 input.username{margin-right:10px}
 
 /* OPTIONS HELP */
-#options_info{width:600px;height:500px;border-bottom:1px solid #ddd;padding:5px}
-#context_info{width:600px;height:300px;border-bottom:1px solid #ddd;padding:5px;clear:both}
-#options_info h1, #context_info h1{margin:0 0 15px 0;border-bottom:1px solid #ddd;padding-bottom:5px}
+#options_info{width:600px;border-bottom:1px solid #ddd;padding:10px;margin-bottom:10px;clear:both}
+#context_info{width:600px;height:300px;border-bottom:1px solid #ddd;padding:10px;margin-bottom:10px;clear:both}
+#options_info h1, #context_info h1{margin:0 0 15px 0;border-bottom:1px solid #ddd;padding-bottom:10px}
 dt{font-size:13px;font-weight:bold;margin-bottom:10px}
 dd{line-height:18px;margin:0 0 10px 10px}
 dd p{margin-bottom:8px}
