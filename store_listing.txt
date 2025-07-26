@@ -1,46 +1,44 @@
-Clicky is an amazing real-time web analytics service, and Clicky Monitor gives you quick access to analytics information for all the sites you track with Clicky.
+Clicky Monitor provides instant access to your Clicky Web Analytics data directly from your browser toolbar. Get real-time visitor counts, goal notifications, and comprehensive site statistics without leaving your current page.
 
 FEATURES
 
-- You can import all your sites automatically from Clicky, or add them manually if you prefer. Select which one you'd like to actively monitor from the site dropdown menu in the Clicky Monitor popup.
+- Multi-Site Management: Import all your Clicky sites automatically or add them manually. Switch between monitored sites using the dropdown in the popup interface.
 
-- The Clicky Monitor toolbar icon will display either the number of visitors currently online, total number of visitors today, or total number of completed goals today. The data is refreshed every minute so you'll always be up to speed.
+- Live Toolbar Badge: Your toolbar icon displays current visitors online, total daily visitors, or completed goals today. Data refreshes automatically every 1-10 minutes with smart adaptive polling that reduces frequency when you're inactive.
 
-- From within the Clicky Monitor popup, you can view basic site stats for various date ranges, see comprehensive information about your site's last 5 visitors, and display graphs for visitors, actions and top browsers over the past 30 days.
+- Comprehensive Dashboard: View basic site statistics across multiple date ranges, detailed information about your last 5 visitors, and interactive charts showing visitors, actions, and top browsers over 30 days.
 
-- Using desktop notifications, you can chose to be alerted whenever a visitor completes a goal on the site you're currently monitoring.
+- Goal Notifications: Receive optional desktop notifications whenever visitors complete goals on your monitored site.
 
-- If you are browsing your site and would like to see the stats for that particular page, just right-click and select "View page stats", and that will take you to the Clicky stats page for the URL you are currently viewing.
+- Context Menu Integration: Right-click on any page of your configured websites to instantly view page-specific statistics on Clicky.
 
-- Your site information is stored locally in the browser and is used to make API requests to Clicky. If you uninstall the extension, that data is deleted. At no time is your data sent anywhere else.
+- Privacy-First & Open Source: Your data stays completely local in your browser and is only used for Clicky API requests. When you uninstall the extension, all stored data is removed. The codebase is open source on GitHub, providing complete transparency about how your data is handled (link below).
 
-PERMISSIONS
+PERMISSIONS EXPLAINED
 
-Each permission directly supports core functionality:
+Each permission directly supports core functionality and your privacy:
 
-  - storage: Store user settings (site IDs, API keys, badge colors, notification preferences) and track extension state (migration flags, last active timestamp, interval levels).
+- storage: Stores your site configurations, API keys, preferences, and extension state locally in your browser.
 
-  - notifications: Display desktop notifications when goals are completed by website visitors (optional).
+- notifications: Shows desktop alerts when goals are completed (optional feature that is disabled by default).
 
-  - contextMenus: Add right-click menu option "View page stats on Clicky" when browsing configured websites.
+- contextMenus: Adds the right-click "View page stats on Clicky" option on your configured websites.
 
-  - alarms: Schedule periodic API checks (every 1-10 minutes based on activity).
+- alarms: Schedules periodic API checks with intelligent frequency adjustment (1-10 minutes based on your activity).
 
-  - idle: Detect when user is inactive to reduce API polling frequency.
+- tabs: Required for two key features:
+  * Activity Detection: Monitors when you switch tabs or navigate pages to optimize API polling frequency.
+  * External Links: Opens Clicky analytics pages, options settings, and goal notification links in new tabs.
+  
+  Note: This extension does NOT read your browsing history, webpage content, or personal data. It only detects basic tab activity (switching/loading) to determine idle time and opens analytics links when you click them.
 
-  - tabs: Detect browser activity (opening/switching tabs) to reset idle timers and open new tabs for external links.
+- api.clicky.com: Fetches your analytics data (visitor counts, goals, charts) from Clicky's official API
 
-  - api.clicky.com: Fetch analytics data (visitor counts, goals, charts) from the Clicky API
-  to display in popup badge and content
+SUPPORT & CHANGELOG
 
-CHANGELOG
+View updates: https://cnanney.com/projects/clicky-monitor/
+Source code: https://github.com/cnanney/clicky-monitor
+Learn about Clicky: https://clicky.com/125897
+For support, email: cnanney at gmail
 
-https://cnanney.com/projects/clicky-monitor/
-
-LEARN MORE ABOUT CLICKY
-
-https://clicky.com/125897
-
-If you have trouble with the extension, please email me (cnanney at gmail).
-
-Note: this extension was previously named "ClickyChrome", but was changed to comply with Google's new branding guidelines.
+Note: Previously named "ClickyChrome" - renamed to comply with Google's branding guidelines.
