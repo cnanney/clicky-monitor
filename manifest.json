@@ -22,7 +22,6 @@
     "notifications",
     "contextMenus",
     "alarms",
-    "idle",
     "tabs"
   ],
   "host_permissions": [
