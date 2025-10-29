@@ -124,7 +124,10 @@ chrome.runtime.onStartup.addListener(async () => {
   await setupCleanGoalAlarm()
   await setupContextMenu() // Re-setup context menu on startup too
 
-  // 4. Perform an immediate check to populate the badge correctly
+  // 4. Restore badge color from storage
+  await updateBadgeColor()
+
+  // 5. Perform an immediate check to populate the badge correctly
   await checkSpy()
 })
 
