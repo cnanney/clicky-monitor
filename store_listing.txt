@@ -26,12 +26,6 @@ Each permission directly supports core functionality and your privacy:
 
 - alarms: Schedules periodic API checks with intelligent frequency adjustment (1-10 minutes based on your activity).
 
-- tabs: Required for two key features:
-  * Activity Detection: Monitors when you switch tabs or navigate pages to optimize API polling frequency.
-  * External Links: Opens Clicky analytics pages, options settings, and goal notification links in new tabs.
-  
-  Note: This extension does NOT read your browsing history, webpage content, or personal data. It only detects basic tab activity (switching/loading) to determine idle time and opens analytics links when you click them.
-
 - api.clicky.com: Fetches your analytics data (visitor counts, goals, charts) from Clicky's official API
 
 SUPPORT & CHANGELOG
