@@ -1,7 +1,7 @@
 /**
  * Clicky Monitor - Manifest V3
  * --------------
- * Service Worker based background script with Idle Backoff using chrome.idle and chrome.tabs.
+ * Service Worker based background script with Idle Backoff using chrome.tabs.
  */
 
 // Define the global namespace *before* importing scripts that rely on it.
@@ -28,7 +28,6 @@ const ALARM_CHECK_API = 'checkApi'
 const ALARM_CLEAN_GOALS = 'cleanGoalLog'
 const GOAL_LOG_CLEAN_INTERVAL_MINUTES = 15
 const GOAL_LOG_EXPIRY_SECONDS = 900
-const IDLE_DETECTION_INTERVAL_SECONDS = 15 // Required minimum for chrome.idle
 
 // Map original timings to minutes for alarms (minimum 1 minute period)
 const SPY_INTERVALS_MINUTES = {
@@ -86,47 +85,67 @@ async function updateLastActiveTimestamp() {
   }, DEBOUNCE_DELAY_MS)
 }
 
+// --- Helper Function to Clear Old Alarms ---
+async function clearLegacyAlarms() {
+  const validAlarmNames = [ALARM_CHECK_API, ALARM_CLEAN_GOALS] // Known alarms we want to keep
+  try {
+    const allAlarms = await chrome.alarms.getAll()
+    for (const alarm of allAlarms) {
+      if (!validAlarmNames.includes(alarm.name)) {
+        const wasCleared = await chrome.alarms.clear(alarm.name)
+        if (wasCleared) {
+          console.log(`[Background] Cleared legacy alarm: ${alarm.name}`)
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[Background] Error clearing legacy alarms:', error)
+  }
+}
+
+// --- Common Initialization Logic ---
+async function performInitialization(resetActivity = false) {
+  await clearLegacyAlarms()
+  await initializeDefaultsAndState()
+
+  // Reset to active state if browser is starting up
+  if (resetActivity) {
+    try {
+      await chrome.storage.local.set({
+        lastActiveTimestamp: Date.now(),
+        currentIntervalLevel: 't1', // Reset to fastest polling on browser startup
+      })
+      console.log('[Background] Reset to active state (browser startup)')
+    } catch (error) {
+      console.error('[Background] Error resetting to active state:', error)
+    }
+  }
+
+  await updateApiAlarm()
+  await setupCleanGoalAlarm()
+  await setupContextMenu()
+
+  // Restore badge color on startup
+  if (resetActivity) {
+    await updateBadgeColor()
+  }
+
+  await checkSpy()
+}
+
 // --- Initialization and Event Listeners ---
 
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.log(
     `[Background] Extension ${details.reason}: version ${chrome.runtime.getManifest().version}`
   )
-  await initializeDefaultsAndState()
-  await setupContextMenu()
-  // updateApiAlarm() needs to run after initializeDefaultsAndState sets the timestamp/level
-  await updateApiAlarm() // Setup initial alarm based on stored/default state
-  await setupCleanGoalAlarm()
-  await checkSpy() // Initial check on install/update
+  await performInitialization()
   console.log('[Background] Extension initialization completed')
 })
 
 chrome.runtime.onStartup.addListener(async () => {
   console.log('[Background] Browser startup - service worker activated')
-
-  // 1. Update timestamp and reset level *first*
-  try {
-    await chrome.storage.local.set({
-      lastActiveTimestamp: Date.now(),
-      currentIntervalLevel: 't1', // Explicitly reset level on startup
-    })
-    console.log(
-      '[Background] Updated lastActiveTimestamp and reset interval level on browser startup'
-    )
-  } catch (error) {
-    console.error('[Background] Error setting initial state on startup:', error)
-    // If this fails, the state might be inconsistent, but proceed if possible
-  }
-
-  // 2. Now update the alarm based on the *new* (active) state
-  await updateApiAlarm()
-
-  // 3. Setup other alarms/tasks
-  await setupCleanGoalAlarm()
-  await setupContextMenu() // Re-setup context menu on startup too
-
-  // 4. Perform an immediate check to populate the badge correctly
-  await checkSpy()
+  await performInitialization(true) // Reset to active state on browser startup
 })
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
@@ -168,25 +187,6 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   }
 })
 
-// Listen for machine idle state changes
-chrome.idle.setDetectionInterval(IDLE_DETECTION_INTERVAL_SECONDS)
-chrome.idle.onStateChanged.addListener(async (newState) => {
-  console.log(`[Background] Machine idle state changed to: ${newState}`)
-  if (newState === 'active') {
-    console.log('[Background] Machine state now active, updating timestamp and resetting interval')
-    // Update timestamp and reset level/alarm when coming back from MACHINE idle
-    await chrome.storage.local.set({
-      lastActiveTimestamp: Date.now(),
-      currentIntervalLevel: 't1',
-    })
-    await updateApiAlarm() // Update alarm immediately to fastest rate
-    await checkSpy() // Trigger immediate check
-  } else {
-    console.log('[Background] Machine state now idle or locked')
-    // No timestamp update needed here. updateApiAlarm will handle interval change.
-  }
-})
-
 // --- Listen for Tab Activity to update timestamp ---
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   // User switched to a tab
@@ -196,10 +196,11 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   // Tab updated (e.g., loaded, navigated)
-  // Only update timestamp if status changes to 'complete' for non-chrome URLs,
-  // or if audio state changes (playing/muting).
-  if (changeInfo.status === 'complete' && tab.url && !tab.url.startsWith('chrome://')) {
-    console.log('[Background] Tab updated and loaded:', tabId, tab.url)
+  // Update timestamp when tab finishes loading or audio state changes.
+  // Note: We don't have access to tab.url without "tabs" permission, but we don't need it -
+  // any tab activity (including chrome:// pages) indicates user activity.
+  if (changeInfo.status === 'complete') {
+    console.log('[Background] Tab updated and loaded:', tabId)
     await updateLastActiveTimestamp() // Record activity (debounced)
   } else if (changeInfo.audible !== undefined) {
     console.log('[Background] Tab audio state changed:', tabId)

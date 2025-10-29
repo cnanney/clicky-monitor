@@ -1,0 +1,38 @@
+Clicky Monitor provides instant access to your Clicky Web Analytics data directly from your browser toolbar. Get real-time visitor counts, goal notifications, and comprehensive site statistics without leaving your current page.
+
+FEATURES
+
+- Multi-Site Management: Import all your Clicky sites automatically or add them manually. Switch between monitored sites using the dropdown in the popup interface.
+
+- Live Toolbar Badge: Your toolbar icon displays current visitors online, total daily visitors, or completed goals today. Data refreshes automatically every 1-10 minutes with smart adaptive polling that reduces frequency when you're inactive.
+
+- Comprehensive Dashboard: View basic site statistics across multiple date ranges, detailed information about your last 5 visitors, and interactive charts showing visitors, actions, and top browsers over 30 days.
+
+- Goal Notifications: Receive optional desktop notifications whenever visitors complete goals on your monitored site.
+
+- Context Menu Integration: Right-click on any page of your configured websites to instantly view page-specific statistics on Clicky.
+
+- Privacy-First & Open Source: Your data stays completely local in your browser and is only used for Clicky API requests. When you uninstall the extension, all stored data is removed. The codebase is open source on GitHub, providing complete transparency about how your data is handled (link below).
+
+PERMISSIONS EXPLAINED
+
+Each permission directly supports core functionality and your privacy:
+
+- storage: Stores your site configurations, API keys, preferences, and extension state locally in your browser.
+
+- notifications: Shows desktop alerts when goals are completed (optional feature that is disabled by default).
+
+- contextMenus: Adds the right-click "View page stats on Clicky" option on your configured websites.
+
+- alarms: Schedules periodic API checks with intelligent frequency adjustment (1-10 minutes based on your activity).
+
+- api.clicky.com: Fetches your analytics data (visitor counts, goals, charts) from Clicky's official API
+
+SUPPORT & CHANGELOG
+
+View updates: https://cnanney.com/projects/clicky-monitor/
+Source code: https://github.com/cnanney/clicky-monitor
+Learn about Clicky: https://clicky.com/125897
+For support, email: cnanney at gmail
+
+Note: Previously named "ClickyChrome" - renamed to comply with Google's branding guidelines.
