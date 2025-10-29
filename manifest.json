@@ -21,8 +21,7 @@
     "storage",
     "notifications",
     "contextMenus",
-    "alarms",
-    "idle"
+    "alarms"
   ],
   "host_permissions": [
     "https://api.clicky.com/"

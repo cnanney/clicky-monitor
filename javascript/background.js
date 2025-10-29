@@ -1,7 +1,7 @@
 /**
  * Clicky Monitor - Manifest V3
  * --------------
- * Service Worker based background script with Idle Backoff using chrome.idle and chrome.tabs.
+ * Service Worker based background script with Idle Backoff using chrome.tabs.
  */
 
 // Define the global namespace *before* importing scripts that rely on it.
@@ -28,7 +28,6 @@ const ALARM_CHECK_API = 'checkApi'
 const ALARM_CLEAN_GOALS = 'cleanGoalLog'
 const GOAL_LOG_CLEAN_INTERVAL_MINUTES = 15
 const GOAL_LOG_EXPIRY_SECONDS = 900
-const IDLE_DETECTION_INTERVAL_SECONDS = 15 // Required minimum for chrome.idle
 
 // Map original timings to minutes for alarms (minimum 1 minute period)
 const SPY_INTERVALS_MINUTES = {
@@ -168,24 +167,6 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   }
 })
 
-// Listen for machine idle state changes
-chrome.idle.setDetectionInterval(IDLE_DETECTION_INTERVAL_SECONDS)
-chrome.idle.onStateChanged.addListener(async (newState) => {
-  console.log(`[Background] Machine idle state changed to: ${newState}`)
-  if (newState === 'active') {
-    console.log('[Background] Machine state now active, updating timestamp and resetting interval')
-    // Update timestamp and reset level/alarm when coming back from MACHINE idle
-    await chrome.storage.local.set({
-      lastActiveTimestamp: Date.now(),
-      currentIntervalLevel: 't1',
-    })
-    await updateApiAlarm() // Update alarm immediately to fastest rate
-    await checkSpy() // Trigger immediate check
-  } else {
-    console.log('[Background] Machine state now idle or locked')
-    // No timestamp update needed here. updateApiAlarm will handle interval change.
-  }
-})
 
 // --- Listen for Tab Activity to update timestamp ---
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
