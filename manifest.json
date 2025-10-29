@@ -22,8 +22,7 @@
     "notifications",
     "contextMenus",
     "alarms",
-    "idle",
-    "tabs"
+    "idle"
   ],
   "host_permissions": [
     "https://api.clicky.com/"
