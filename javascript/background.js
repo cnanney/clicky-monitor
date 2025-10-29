@@ -177,10 +177,11 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   // Tab updated (e.g., loaded, navigated)
-  // Only update timestamp if status changes to 'complete' for non-chrome URLs,
-  // or if audio state changes (playing/muting).
-  if (changeInfo.status === 'complete' && tab.url && !tab.url.startsWith('chrome://')) {
-    console.log('[Background] Tab updated and loaded:', tabId, tab.url)
+  // Update timestamp when tab finishes loading or audio state changes.
+  // Note: We don't have access to tab.url without "tabs" permission, but we don't need it -
+  // any tab activity (including chrome:// pages) indicates user activity.
+  if (changeInfo.status === 'complete') {
+    console.log('[Background] Tab updated and loaded:', tabId)
     await updateLastActiveTimestamp() // Record activity (debounced)
   } else if (changeInfo.audible !== undefined) {
     console.log('[Background] Tab audio state changed:', tabId)
