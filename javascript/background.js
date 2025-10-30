@@ -77,8 +77,22 @@ async function updateLastActiveTimestamp() {
   clearTimeout(timestampUpdateTimeout) // Clear existing timeout
   timestampUpdateTimeout = setTimeout(async () => {
     try {
-      await chrome.storage.local.set({ lastActiveTimestamp: Date.now() })
-      console.log('[Background] Updated lastActiveTimestamp due to tab/browser activity')
+      const data = await chrome.storage.local.get('currentIntervalLevel')
+      const currentLevel = data.currentIntervalLevel || DEFAULT_INTERVAL_LEVEL
+
+      await chrome.storage.local.set({
+        lastActiveTimestamp: Date.now(),
+        currentIntervalLevel: 't1',
+      })
+      console.log(
+        '[Background] Updated lastActiveTimestamp and currentIntervalLevel due to tab/browser activity'
+      )
+
+      if (currentLevel !== 't1') {
+        console.log(`[Background] Resuming from ${currentLevel} state, resetting alarm`)
+        await updateApiAlarm()
+        await checkSpy()
+      }
     } catch (error) {
       console.error('[Background] Error setting lastActiveTimestamp:', error)
     }
@@ -191,7 +205,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   // User switched to a tab
   console.log('[Background] Tab activated:', activeInfo.tabId)
-  await updateLastActiveTimestamp() // Record activity (debounced)
+  await updateLastActiveTimestamp()
 })
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
@@ -201,10 +215,10 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   // any tab activity (including chrome:// pages) indicates user activity.
   if (changeInfo.status === 'complete') {
     console.log('[Background] Tab updated and loaded:', tabId)
-    await updateLastActiveTimestamp() // Record activity (debounced)
+    await updateLastActiveTimestamp()
   } else if (changeInfo.audible !== undefined) {
     console.log('[Background] Tab audio state changed:', tabId)
-    await updateLastActiveTimestamp() // Record activity (debounced)
+    await updateLastActiveTimestamp()
   }
 })
 
@@ -213,7 +227,7 @@ chrome.windows.onFocusChanged.addListener(async (windowId) => {
   // WINDOW_ID_NONE means focus lost from Chrome entirely
   if (windowId !== chrome.windows.WINDOW_ID_NONE) {
     console.log('[Background] Chrome window focused:', windowId)
-    await updateLastActiveTimestamp() // Record activity (debounced)
+    await updateLastActiveTimestamp()
   } else {
     console.log('[Background] Chrome window lost focus')
     // No timestamp update when focus is lost
